@@ -1,0 +1,195 @@
+
+[
+  {
+    "name": "SPS 2(CH6)",
+    "host": "192.168.117.101",
+    "database": "rmd1scale1",
+    "user": "sa",
+    "password": "sipco77",
+    "m": "sps2ch6"
+  },
+  {
+    "name": "SPS 2(CH4)",
+    "host": "192.168.117.102",
+    "database": "rmd1scale1",
+    "user": "sa",
+    "password": "sipco77",
+    "m": "sps2ch4"
+  },
+  {
+    "name": "OPS 3",
+    "host": "192.168.118.104",
+    "database": "rmd3scale1",
+    "user": "sa",
+    "password": "sipco77",
+    "m": "ops3"
+  },
+  {
+    "name": "OPS 4",
+    "host": "192.168.118.105",
+    "database": "rmd4scale1",
+    "user": "sa",
+    "password": "sipco77",
+    "m": "ops4"
+  },
+  {
+    "name": "ท่อดำ #1",
+    "host": "192.168.118.201",
+    "database": "RMD5SCALE1",
+    "user": "sa",
+    "password": "sipco77",
+    "m": "I1"
+  },
+  {
+    "name": "ท่อดำ #2",
+    "host": "192.168.118.202",
+    "database": "RMD5SCALE1",
+    "user": "sa",
+    "password": "sipco77",
+    "m": "I2"
+  },
+  {
+    "name": "ท่อดำ #3",
+    "host": "192.168.118.203",
+    "database": "RMD5SCALE1",
+    "user": "sa",
+    "password": "sipco77",
+    "m": "I3"
+  },
+  {
+    "name": "ท่อดำ #4",
+    "host": "192.168.118.204",
+    "database": "RMD5SCALE1",
+    "user": "sa",
+    "password": "sipco77",
+    "m": "I4"
+  },
+  {
+    "name": "ท่อดำ #5",
+    "host": "192.168.118.205",
+    "database": "RMD5SCALE1",
+    "user": "sa",
+    "password": "sipco77",
+    "m": "I5"
+  },
+  {
+    "name": "ท่อดำ #6",
+    "host": "192.168.118.206",
+    "database": "RMD5SCALE1",
+    "user": "sa",
+    "password": "sipco77",
+    "m": "I6"
+  },
+  {
+    "name": "ท่อดำ #7",
+    "host": "192.168.118.207",
+    "database": "RMD5SCALE1",
+    "user": "sa",
+    "password": "sipco77",
+    "m": "I7"
+  },
+  {
+    "name": "ท่อดำ #8",
+    "host": "192.168.118.208",
+    "database": "RMD5SCALE8",
+    "user": "sa",
+    "password": "sipco77",
+    "m": "I8"
+  },
+  {
+    "name": "ตัวซี #1",
+    "host": "192.168.118.209",
+    "database": "C1",
+    "user": "sa",
+    "password": "sipco77",
+    "m": "C1"
+  },
+  {
+    "name": "ตัวซี #2",
+    "host": "192.168.118.209",
+    "database": "c2",
+    "user": "sa",
+    "password": "sipco77",
+    "m": "C2"
+  },
+  {
+    "name": "ตัวซี #3",
+    "host": "192.168.118.211",
+    "database": "c3",
+    "user": "sa",
+    "password": "sipco77",
+    "m": "C3"
+  },
+  {
+    "name": "ตัวซี #4",
+    "host": "192.168.118.211",
+    "database": "c4",
+    "user": "sa",
+    "password": "sipco77",
+    "m": "C4"
+  },
+  {
+    "name": "ตัวซี #5",
+    "host": "192.168.118.213",
+    "database": "c5",
+    "user": "sa",
+    "password": "sipco77",
+    "m": "C5"
+  },
+  {
+    "name": "ตัวซี #6",
+    "host": "192.168.118.213",
+    "database": "c6",
+    "user": "sa",
+    "password": "sipco77",
+    "m": "C6"
+  },
+  {
+    "name": "ตัดแผ่น 1",
+    "host": "192.168.118.222",
+    "database": "plates1",
+    "user": "sa",
+    "password": "sipco77",
+    "m": "plates1"
+  },
+  {
+    "name": "ตัดแผ่น 2",
+    "host": "192.168.118.222",
+    "database": "plates2",
+    "user": "sa",
+    "password": "sipco77",
+    "m": "plates2"
+  },
+  {
+    "name": "ตัดแผ่น 4",
+    "host": "192.168.118.222",
+    "database": "plates4",
+    "user": "sa",
+    "password": "sipco77",
+    "m": "plates4"
+  },
+  {
+    "name": "สลิท#1",
+    "host": "192.168.118.214",
+    "database": "slitter",
+    "user": "sa",
+    "password": "sipco77",
+    "m": "S1"
+  },
+  {
+    "name": "สลิท#2",
+    "host": "192.168.118.215",
+    "database": "slitter",
+    "user": "sa",
+    "password": "sipco77",
+    "m": "S2"
+  },
+  {
+    "name": "สลิท#3",
+    "host": "192.168.118.215",
+    "database": "slitter3",
+    "user": "sa",
+    "password": "sipco77",
+    "m": "S3"
+  }
+]
