@@ -1,0 +1,46 @@
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# dotenv
+.env
+.env.*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Output
+/dist/
+/build/
+*.out
+*.xlsx
+*.xls
+*.csv
+
+# IDE
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# Misc
+coverage/
+tmp/
+temp/
+.cache/
+
+# Ignore report output (if not source)
+report/*.php
+!report/*.php
+
+# Ignore config with sensitive info (if needed)
+# db_instances.config.json 
