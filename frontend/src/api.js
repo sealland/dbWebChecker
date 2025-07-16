@@ -1,9 +1,10 @@
 import axios from 'axios';
 
-const API_BASE = process.env.REACT_APP_API_BASE || '/api';
+const API_BASE = process.env.REACT_APP_API_BASE || '/api'; //production
+//const API_BASE = process.env.REACT_APP_API_BASE || 'http://localhost:4000/api';
 
 export async function getInstances() {
-  const res = await axios.get(`${API_BASE}/instances`);
+  const res = await axios.get(`${API_BASE}/instances/list`);
   return res.data;
 }
 
