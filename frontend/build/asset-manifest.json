@@ -1,0 +1,10 @@
+{
+  "files": {
+    "main.js": "/dbwebchecker/static/js/main.991cb08d.js",
+    "index.html": "/dbwebchecker/index.html",
+    "main.991cb08d.js.map": "/dbwebchecker/static/js/main.991cb08d.js.map"
+  },
+  "entrypoints": [
+    "static/js/main.991cb08d.js"
+  ]
+}

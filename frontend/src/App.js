@@ -77,7 +77,7 @@ function App() {
         <Card sx={{ boxShadow: 3, borderRadius: 3 }}>
           <CardContent>
             <Typography variant="h4" fontWeight={700} color="primary.main" align="center" gutterBottom>
-              ระบบตรวจสอบสถานะฐานข้อมูลและสร้างรายงาน
+              ตรวจสอบสถานะฐานข้อมูลและสร้างรายงาน
             </Typography>
             <Box display="flex" gap={2} alignItems="center" mb={3} flexWrap="wrap" justifyContent="center">
               <FormControl sx={{ minWidth: 220 }} size="small">

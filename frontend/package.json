@@ -1,7 +1,8 @@
 {
-  "name": "dbwebchecker-frontend",
+  "name": "dbwebchecker",
   "version": "1.0.0",
   "private": true,
+  "homepage": "/dbwebchecker",
   "dependencies": {
     "@mui/material": "^5.14.0",
     "@mui/icons-material": "^5.14.0",
