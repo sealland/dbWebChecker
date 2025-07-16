@@ -103,4 +103,106 @@ export async function queryA2Rpt(dbConfig, year, month, page = 1, pageSize = 20)
   } catch (err) {
     throw err;
   }
+}
+
+export async function queryA2RptSummary(dbConfig, year, month) {
+  const config = {
+    user: dbConfig.user,
+    password: dbConfig.password,
+    server: dbConfig.host,
+    database: dbConfig.database,
+    port: 1433,
+    options: {
+      encrypt: false,
+      trustServerCertificate: true
+    },
+    pool: { max: 2, min: 0, idleTimeoutMillis: 5000 }
+  };
+  const ref = `${year}-${month.toString().padStart(2, '0')}`;
+  const sqlQuery = `
+    SELECT 
+      [rmd_size], 
+      [rmd_qa_grade], 
+      [rmd_remark], 
+      SUM([rmd_qty3]) as sumqty3, 
+      SUM([rmd_weight]) as sweight
+    FROM [dbo].[vw_a2_rpt]
+    WHERE FORMAT([rmd_date], 'yyyy-MM') = @ref
+    GROUP BY [rmd_size], [rmd_qa_grade], [rmd_remark]
+    ORDER BY [rmd_size], [rmd_qa_grade], [rmd_remark]
+  `;
+  try {
+    const pool = await sql.connect(config);
+    const result = await pool.request()
+      .input('ref', sql.VarChar, ref)
+      .query(sqlQuery);
+    await pool.close();
+    return result.recordset;
+  } catch (err) {
+    throw err;
+  }
+} 
+
+export async function queryA2RptSum(dbConfig, year, month) {
+  const config = {
+    user: dbConfig.user,
+    password: dbConfig.password,
+    server: dbConfig.host,
+    database: dbConfig.database,
+    port: 1433,
+    options: {
+      encrypt: false,
+      trustServerCertificate: true
+    },
+    pool: { max: 2, min: 0, idleTimeoutMillis: 5000 }
+  };
+  const ref = `${year}-${month.toString().padStart(2, '0')}`;
+  const sqlQuery = `
+    SELECT SUM([rmd_qty3]) as sQty3, SUM([rmd_weight]) as sweight
+    FROM [dbo].[vw_a2_rpt]
+    WHERE FORMAT([rmd_date], 'yyyy-MM') = @ref
+  `;
+  try {
+    const pool = await sql.connect(config);
+    const result = await pool.request()
+      .input('ref', sql.VarChar, ref)
+      .query(sqlQuery);
+    await pool.close();
+    return result.recordset[0];
+  } catch (err) {
+    throw err;
+  }
+}
+
+export async function queryA2RptSummarySizeSum(dbConfig, year, month) {
+  const config = {
+    user: dbConfig.user,
+    password: dbConfig.password,
+    server: dbConfig.host,
+    database: dbConfig.database,
+    port: 1433,
+    options: {
+      encrypt: false,
+      trustServerCertificate: true
+    },
+    pool: { max: 2, min: 0, idleTimeoutMillis: 5000 }
+  };
+  const ref = `${year}-${month.toString().padStart(2, '0')}`;
+  const sqlQuery = `
+    SELECT [rmd_size], SUM([rmd_qty3]) as sQty3, SUM([rmd_weight]) as sweight
+    FROM [dbo].[vw_a2_rpt]
+    WHERE FORMAT([rmd_date], 'yyyy-MM') = @ref
+    GROUP BY [rmd_size]
+    ORDER BY [rmd_size]
+  `;
+  try {
+    const pool = await sql.connect(config);
+    const result = await pool.request()
+      .input('ref', sql.VarChar, ref)
+      .query(sqlQuery);
+    await pool.close();
+    return result.recordset;
+  } catch (err) {
+    throw err;
+  }
 } 

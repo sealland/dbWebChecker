@@ -1,5 +1,5 @@
 import express from 'express';
-import { getAllDbConfigs, getDbConfigByName, checkDbOnline, queryA2Rpt } from './dbUtil.js';
+import { getAllDbConfigs, getDbConfigByName, checkDbOnline, queryA2Rpt, queryA2RptSummary, queryA2RptSum, queryA2RptSummarySizeSum } from './dbUtil.js';
 import xlsx from 'xlsx';
 
 const router = express.Router();
@@ -86,6 +86,12 @@ router.get('/a2rpt/export', async (req, res) => {
       if (data.length < pageSize) break;
       page++;
     }
+    // ดึง summary
+    const summary = await queryA2RptSummary(dbConfig, year, month);
+    // ดึง sum ทั้งหมด
+    const sum = await queryA2RptSum(dbConfig, year, month);
+    // ดึง sum แยก size
+    const sizeSums = await queryA2RptSummarySizeSum(dbConfig, year, month);
     // สร้างไฟล์ Excel
     // กำหนดหัวคอลัมน์ใหม่
     const headers = [
@@ -120,6 +126,48 @@ router.get('/a2rpt/export', async (req, res) => {
       row.rmd_remark    // หมายเหตุ
     ]);
     const ws = xlsx.utils.aoa_to_sheet([...headers, ...mappedData]);
+    // --- เพิ่ม sum ใต้ตารางหลัก ---
+    const sumRow = ['', '', '', '', '', 'รวม', sum.sQty3 || 0, sum.sweight || 0, ''];
+    xlsx.utils.sheet_add_aoa(ws, [sumRow], {origin: -1});
+    // --- เพิ่ม summary ต่อท้าย ---
+    // แปลงเลขเดือนเป็นชื่อเดือนภาษาไทย
+    const monthNames = [
+      '', 'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+      'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
+    ];
+    const monthName = monthNames[parseInt(month, 10)];
+    // หา row สุดท้าย
+    const lastRow = headers.length + mappedData.length + 3; // +1 sum +1 เว้นบรรทัด
+    // หัวข้อ summary
+    xlsx.utils.sheet_add_aoa(ws, [[`สรุปรายงานผลิตภัณฑ์ที่ไม่เป็นไปตามข้อกำหนดประจำเดือน ${monthName}`]], {origin: `A${lastRow}`});
+    // หัวตาราง summary
+    xlsx.utils.sheet_add_aoa(ws, [[
+      'ชนิดผลิตภัณฑ์', 'เกรด', 'ปัญหา', 'จำนวนเส้น', 'น้ำหนัก(Kg.)'
+    ]], {origin: `A${lastRow+1}`});
+    // --- สร้าง summary group by size ---
+    // group summary by rmd_size
+    const summaryBySize = {};
+    summary.forEach(row => {
+      if (!summaryBySize[row.rmd_size]) summaryBySize[row.rmd_size] = [];
+      summaryBySize[row.rmd_size].push(row);
+    });
+    // map sizeSums เป็น object
+    const sizeSumMap = {};
+    sizeSums.forEach(s => { sizeSumMap[s.rmd_size] = s; });
+    // สร้าง rows
+    let summaryRows = [];
+    Object.keys(summaryBySize).forEach(size => {
+      summaryBySize[size].forEach(row => {
+        summaryRows.push([
+          row.rmd_size, row.rmd_qa_grade, row.rmd_remark, row.sumqty3, row.sweight
+        ]);
+      });
+      // ต่อด้วยบรรทัดรวมของ size นี้
+      const sizeSum = sizeSumMap[size];
+      summaryRows.push(['', '', 'รวม', sizeSum ? sizeSum.sQty3 : 0, sizeSum ? sizeSum.sweight : 0]);
+    });
+    xlsx.utils.sheet_add_aoa(ws, summaryRows, {origin: `A${lastRow+2}`});
+    // ---
     const wb = xlsx.utils.book_new();
     xlsx.utils.book_append_sheet(wb, ws, 'A2 Report');
     const buffer = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
