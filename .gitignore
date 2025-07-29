@@ -44,3 +44,33 @@ report/*.php
 
 # Ignore config with sensitive info (if needed)
 # db_instances.config.json 
+
+# API Documentation
+API_COMPARE_README.md
+
+# Database backup files
+*.bak
+*.sql
+*.mdf
+*.ldf
+
+# Temporary files
+*.tmp
+*.temp
+
+# API response cache
+.cache/
+api-cache/
+
+# Development files
+.env.development
+.env.test
+.env.production
+
+# Backup config files
+db_instances.config.json.backup
+db_instances.config.json.bak
+
+# Log files for API
+api-logs/
+backend/logs/ 

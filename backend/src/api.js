@@ -1,5 +1,5 @@
 import express from 'express';
-import { getAllDbConfigs, getDbConfigByName, checkDbOnline, queryA2Rpt, queryA2RptSummary, queryA2RptSum, queryA2RptSummarySizeSum } from './dbUtil.js';
+import { getAllDbConfigs, getDbConfigByName, checkDbOnline, queryA2Rpt, queryA2RptSummary, queryA2RptSum, queryA2RptSummarySizeSum, queryStationData, queryPlanningData, updateProductionPlan } from './dbUtil.js';
 import xlsx from 'xlsx';
 
 const router = express.Router();
@@ -178,6 +178,84 @@ router.get('/a2rpt/export', async (req, res) => {
     res.send(buffer);
   } catch (err) {
     res.status(500).json({ error: 'เกิดข้อผิดพลาดในการ export Excel', detail: err.message });
+  }
+});
+
+// GET /api/compare/station?name=...&fromDate=...&toDate=... - ดึงข้อมูลจาก Station
+router.get('/compare/station', async (req, res) => {
+  const { name, fromDate, toDate } = req.query;
+  if (!name || !fromDate || !toDate) {
+    return res.status(400).json({ error: 'ต้องระบุ name, fromDate, toDate' });
+  }
+  const dbConfig = getDbConfigByName(name);
+  if (!dbConfig) {
+    return res.status(404).json({ error: 'ไม่พบเครื่องที่ระบุ' });
+  }
+  try {
+    const data = await queryStationData(dbConfig, fromDate, toDate);
+    res.json({ data });
+  } catch (err) {
+    res.status(500).json({ error: 'เกิดข้อผิดพลาดในการดึงข้อมูล Station', detail: err.message });
+  }
+});
+
+// GET /api/compare/planning?name=...&station=...&fromDate=...&toDate=... - ดึงข้อมูลจาก Planning
+router.get('/compare/planning', async (req, res) => {
+  const { name, station, fromDate, toDate } = req.query;
+  if (!name || !station || !fromDate || !toDate) {
+    return res.status(400).json({ error: 'ต้องระบุ name, station, fromDate, toDate' });
+  }
+  const dbConfig = getDbConfigByName(name);
+  if (!dbConfig) {
+    return res.status(404).json({ error: 'ไม่พบเครื่องที่ระบุ' });
+  }
+  try {
+    const data = await queryPlanningData(dbConfig, station, fromDate, toDate);
+    res.json({ data });
+  } catch (err) {
+    res.status(500).json({ error: 'เกิดข้อผิดพลาดในการดึงข้อมูล Planning', detail: err.message });
+  }
+});
+
+// POST /api/compare/update - อัพเดตข้อมูล Production Plan
+router.post('/compare/update', async (req, res) => {
+  const { name, station, fromDate, toDate, shift, user } = req.body;
+  if (!name || !station || !fromDate || !toDate) {
+    return res.status(400).json({ error: 'ต้องระบุ name, station, fromDate, toDate' });
+  }
+  const dbConfig = getDbConfigByName(name);
+  if (!dbConfig) {
+    return res.status(404).json({ error: 'ไม่พบเครื่องที่ระบุ' });
+  }
+  try {
+    const result = await updateProductionPlan(dbConfig, station, fromDate, toDate, shift || "Z", user || "system");
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: 'เกิดข้อผิดพลาดในการอัพเดตข้อมูล', detail: err.message });
+  }
+});
+
+// GET /api/compare/both?name=...&station=...&fromDate=...&toDate=... - ดึงข้อมูลทั้งสองฝั่งพร้อมกัน
+router.get('/compare/both', async (req, res) => {
+  const { name, station, fromDate, toDate } = req.query;
+  if (!name || !station || !fromDate || !toDate) {
+    return res.status(400).json({ error: 'ต้องระบุ name, station, fromDate, toDate' });
+  }
+  const dbConfig = getDbConfigByName(name);
+  if (!dbConfig) {
+    return res.status(404).json({ error: 'ไม่พบเครื่องที่ระบุ' });
+  }
+  try {
+    const [stationData, planningData] = await Promise.all([
+      queryStationData(dbConfig, fromDate, toDate),
+      queryPlanningData(dbConfig, station, fromDate, toDate)
+    ]);
+    res.json({ 
+      station: { data: stationData },
+      planning: { data: planningData }
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'เกิดข้อผิดพลาดในการดึงข้อมูลเปรียบเทียบ', detail: err.message });
   }
 });
 

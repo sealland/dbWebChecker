@@ -206,3 +206,147 @@ export async function queryA2RptSummarySizeSum(dbConfig, year, month) {
     throw err;
   }
 } 
+
+// ฟังก์ชันดึงข้อมูลจาก Station (GET_CD3DATA)
+export async function queryStationData(dbConfig, fromDate, toDate) {
+  const config = {
+    user: dbConfig.user,
+    password: dbConfig.password,
+    server: dbConfig.host,
+    database: dbConfig.database,
+    port: 1433,
+    options: {
+      encrypt: false,
+      trustServerCertificate: true
+    },
+    pool: { max: 2, min: 0, idleTimeoutMillis: 5000 }
+  };
+  
+  const sqlQuery = `
+    SELECT doc_date, material, rmd_size, InStr(1,[material],"1") AS [chk-a]
+    FROM GET_CD3DATA 
+    WHERE FORMAT(doc_date,'yyyy-mm-dd') BETWEEN @fromDate AND @toDate
+    GROUP BY doc_date, material, rmd_size, InStr(1,[material],"1"), rmd_date, material, rmd_period
+    HAVING (((InStr(1,[material],"1"))=4))
+  `;
+  
+  try {
+    const pool = await sql.connect(config);
+    const result = await pool.request()
+      .input('fromDate', sql.VarChar, fromDate)
+      .input('toDate', sql.VarChar, toDate)
+      .query(sqlQuery);
+    await pool.close();
+    return result.recordset;
+  } catch (err) {
+    throw err;
+  }
+}
+
+// ฟังก์ชันดึงข้อมูลจาก Planning
+export async function queryPlanningData(dbConfig, station, fromDate, toDate) {
+  const config = {
+    user: dbConfig.user,
+    password: dbConfig.password,
+    server: dbConfig.host,
+    database: dbConfig.database,
+    port: 1433,
+    options: {
+      encrypt: false,
+      trustServerCertificate: true
+    },
+    pool: { max: 2, min: 0, idleTimeoutMillis: 5000 }
+  };
+  
+  const sqlQuery = `
+    SELECT postingdate, material_code, size
+    FROM dbo.production_plan
+    WHERE station LIKE @station 
+    AND FORMAT(postingdate,'yyyy-mm-dd') BETWEEN @fromDate AND @toDate
+  `;
+  
+  try {
+    const pool = await sql.connect(config);
+    const result = await pool.request()
+      .input('station', sql.VarChar, `%${station}%`)
+      .input('fromDate', sql.VarChar, fromDate)
+      .input('toDate', sql.VarChar, toDate)
+      .query(sqlQuery);
+    await pool.close();
+    return result.recordset;
+  } catch (err) {
+    throw err;
+  }
+}
+
+// ฟังก์ชันอัพเดตข้อมูล Production Plan
+export async function updateProductionPlan(dbConfig, station, fromDate, toDate, shift = "Z", user = "system") {
+  const config = {
+    user: dbConfig.user,
+    password: dbConfig.password,
+    server: dbConfig.host,
+    database: dbConfig.database,
+    port: 1433,
+    options: {
+      encrypt: false,
+      trustServerCertificate: true
+    },
+    pool: { max: 2, min: 0, idleTimeoutMillis: 5000 }
+  };
+  
+  try {
+    const pool = await sql.connect(config);
+    
+    // Step 1: อัพเดตสถานะเป็น 'รอตรวจสอบ'
+    const updateQuery = `
+      UPDATE dbo.production_plan 
+      SET status = 'รอตรวจสอบ', shift = @shift 
+      WHERE station = @station 
+      AND FORMAT(postingdate,'yyyy-mm-dd') BETWEEN @fromDate AND @toDate
+    `;
+    
+    await pool.request()
+      .input('shift', sql.VarChar, shift)
+      .input('station', sql.VarChar, station)
+      .input('fromDate', sql.VarChar, fromDate)
+      .input('toDate', sql.VarChar, toDate)
+      .query(updateQuery);
+    
+    // Step 2: เพิ่มข้อมูลใหม่จาก GET_CD3DATA
+    const insertQuery = `
+      INSERT INTO dbo.production_plan 
+      ([machine],[station],[material_code],[postingdate],[size],[ton],[change],[username],[shift],[Status],[complete])
+      SELECT 
+        machine,
+        @station,
+        material,
+        doc_date,
+        rmd_size,
+        SUM(rmd_weight)/1000,
+        @changeTime,
+        @user,
+        rmd_period,
+        'ผลิตแน่',
+        -1
+      FROM GET_CD3DATA 
+      WHERE FORMAT(doc_date,'yyyy-mm-dd') BETWEEN @fromDate AND @toDate
+      AND rmd_size IS NOT NULL 
+      AND rmd_qa_grade = 'A1' 
+      AND rmd_weight > 0 
+      GROUP BY machine, doc_date, rmd_size, material, rmd_period
+    `;
+    
+    await pool.request()
+      .input('station', sql.VarChar, station)
+      .input('changeTime', sql.DateTime, new Date())
+      .input('user', sql.VarChar, user)
+      .input('fromDate', sql.VarChar, fromDate)
+      .input('toDate', sql.VarChar, toDate)
+      .query(insertQuery);
+    
+    await pool.close();
+    return { success: true, message: 'อัพเดตข้อมูลสำเร็จ' };
+  } catch (err) {
+    throw err;
+  }
+} 
