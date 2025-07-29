@@ -4,10 +4,31 @@ import bodyParser from 'body-parser';
 import apiRouter from './api.js';
 
 const app = express();
-const PORT = process.env.PORT || 4000;
+const PORT = process.env.PORT || 4001;
 
-app.use(cors());
-app.use(bodyParser.json());
+// CORS configuration
+app.use(cors({
+  origin: [
+    'http://localhost:3000', 
+    'http://localhost:3001',
+    'http://localhost:4000',
+    'http://localhost:4001',
+    'https://whs.zubbsteel.com',
+    'http://192.168.132.7:3000',
+    'http://192.168.132.7:3001',
+    'http://192.168.132.7:4000',
+    'http://192.168.132.7:4001'
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+}));
+
+// Body parsing middleware
+app.use(bodyParser.json({ limit: '10mb' }));
+app.use(bodyParser.urlencoded({ extended: true, limit: '10mb' }));
+
+// API routes
 app.use('/api', apiRouter);
 
 app.get('/', (req, res) => {

@@ -191,5 +191,13 @@
     "user": "sa",
     "password": "sipco77",
     "m": "S3"
+  },
+  {
+    "name": "CEO Report",
+    "host": "192.168.100.222",
+    "database": "ceo_report",
+    "user": "sa",
+    "password": "",
+    "m": "ceo_report"
   }
 ]

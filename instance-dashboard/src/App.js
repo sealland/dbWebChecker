@@ -38,7 +38,7 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import { useLocation } from 'react-router-dom';
 
-const API_URL = '/api/instances';
+const API_URL = 'https://whs.zubbsteel.com/api/instances';
 const REFRESH_INTERVAL = 30000; // 30 วินาที
 
 function StatusAvatar({ online }) {
@@ -163,7 +163,7 @@ function App() {
     setLoadingCompare(true);
     try {
       // ดึงข้อมูลทั้งสองฝั่งพร้อมกัน
-      const response = await axios.get('/api/compare/both', {
+      const response = await axios.get('https://whs.zubbsteel.com/api/compare/both', {
         params: {
           name: selected.name,
           station: selected.name, // ใช้ชื่อเครื่องเป็น station
@@ -191,7 +191,7 @@ function App() {
     
     setUpdating(true);
     try {
-      const response = await axios.post('/api/compare/update', {
+      const response = await axios.post('https://whs.zubbsteel.com/api/compare/update', {
         name: selected.name,
         station: selected.name,
         fromDate: compareDates.from,

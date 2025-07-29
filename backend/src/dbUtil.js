@@ -3,7 +3,9 @@ import fs from 'fs';
 import path from 'path';
 import { exec } from 'child_process';
 
-const configPath = path.resolve(process.cwd(), '../db_instances.config.json');
+
+
+const configPath = 'D:\\httpdoc\\wh\\dbWebChecker\\db_instances.config.json';
 const dbInstances = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
 
 export function getDbConfigByName(name) {
@@ -23,6 +25,53 @@ function pingHost(host) {
       return resolve(false);
     });
   });
+}
+
+// เพิ่มฟังก์ชันนี้หลัง import statements
+function mapMachineToStation(machineName) {
+  console.log('🔄 Mapping machine name:', machineName);
+  
+  const mapping = {
+    // ท่อดำ
+    'ท่อดำ #1': 'OCP I1',
+    'ท่อดำ #2': 'OCP I2', 
+    'ท่อดำ #3': 'OCP I3',
+    'ท่อดำ #4': 'OCP I4',
+    'ท่อดำ #5': 'OCP I5',
+    'ท่อดำ #6': 'OCP I6',
+    'ท่อดำ #7': 'OCP I7',
+    'ท่อดำ #8': 'OCP I8',
+    
+    // ตัวซี
+    'ตัวซี #1': 'OCP H1',
+    'ตัวซี #2': 'OCP H2',
+    'ตัวซี #3': 'OCP H3',
+    'ตัวซี #4': 'OCP H4',
+    'ตัวซี #5': 'OCP H5',
+    'ตัวซี #6': 'OCP H6',
+    
+    // ตัดแผ่น
+    'ตัดแผ่น 1': 'OCP PL1',
+    'ตัดแผ่น 2': 'OCP PL2',
+    'ตัดแผ่น 4': 'OCP PL4',
+    
+    // สลิท
+    'สลิท#1': 'OCP SL1',
+    'สลิท#2': 'OCP SL2',
+    'สลิท#3': 'OCP SL3',
+    
+    // OPS
+    'OPS 3': 'OPS3',
+    'OPS 4': 'OPS4',
+    
+    // SPS
+    'SPS 2(CH6)': 'SPS2CH6',
+    'SPS 2(CH4)': 'SPS2CH4'
+  };
+  const mappedStation = mapping[machineName] || machineName;
+  console.log('  → Mapped to:', mappedStation);
+  
+  return mappedStation;
 }
 
 export async function checkDbOnline(dbConfig) {
@@ -223,11 +272,11 @@ export async function queryStationData(dbConfig, fromDate, toDate) {
   };
   
   const sqlQuery = `
-    SELECT doc_date, material, rmd_size, InStr(1,[material],"1") AS [chk-a]
+    SELECT doc_date, material, rmd_size, CHARINDEX('1', [material]) AS [chk-a]
     FROM GET_CD3DATA 
-    WHERE FORMAT(doc_date,'yyyy-mm-dd') BETWEEN @fromDate AND @toDate
-    GROUP BY doc_date, material, rmd_size, InStr(1,[material],"1"), rmd_date, material, rmd_period
-    HAVING (((InStr(1,[material],"1"))=4))
+    WHERE doc_date BETWEEN @fromDate AND @toDate
+    GROUP BY doc_date, material, rmd_size
+    HAVING CHARINDEX('1', [material]) = 4
   `;
   
   try {
@@ -243,13 +292,13 @@ export async function queryStationData(dbConfig, fromDate, toDate) {
   }
 }
 
-// ฟังก์ชันดึงข้อมูลจาก Planning
 export async function queryPlanningData(dbConfig, station, fromDate, toDate) {
-  const config = {
-    user: dbConfig.user,
-    password: dbConfig.password,
-    server: dbConfig.host,
-    database: dbConfig.database,
+  // ใช้ CEO_REPORT database สำหรับ production_plan
+  const ceoReportConfig = {
+    user: "sa",
+    password: "",
+    server: "192.168.100.222",
+    database: "ceo_report",
     port: 1433,
     options: {
       encrypt: false,
@@ -260,32 +309,33 @@ export async function queryPlanningData(dbConfig, station, fromDate, toDate) {
   
   const sqlQuery = `
     SELECT postingdate, material_code, size
-    FROM dbo.production_plan
-    WHERE station LIKE @station 
-    AND FORMAT(postingdate,'yyyy-mm-dd') BETWEEN @fromDate AND @toDate
+    FROM production_plan
+    WHERE postingdate BETWEEN @fromDate AND @toDate
   `;
   
   try {
-    const pool = await sql.connect(config);
+    const pool = await sql.connect(ceoReportConfig);
     const result = await pool.request()
-      .input('station', sql.VarChar, `%${station}%`)
       .input('fromDate', sql.VarChar, fromDate)
       .input('toDate', sql.VarChar, toDate)
       .query(sqlQuery);
+    
     await pool.close();
     return result.recordset;
   } catch (err) {
     throw err;
   }
 }
-
 // ฟังก์ชันอัพเดตข้อมูล Production Plan
 export async function updateProductionPlan(dbConfig, station, fromDate, toDate, shift = "Z", user = "system") {
-  const config = {
-    user: dbConfig.user,
-    password: dbConfig.password,
-    server: dbConfig.host,
-    database: dbConfig.database,
+  // ใช้ CEO_REPORT database สำหรับ production_plan
+  const mappedStation = mapMachineToStation(station);
+  
+  const ceoReportConfig = {
+    user: "sa",
+    password: "",
+    server: "192.168.100.222",
+    database: "ceo_report",
     port: 1433,
     options: {
       encrypt: false,
@@ -295,14 +345,14 @@ export async function updateProductionPlan(dbConfig, station, fromDate, toDate, 
   };
   
   try {
-    const pool = await sql.connect(config);
+    const pool = await sql.connect(ceoReportConfig);
     
     // Step 1: อัพเดตสถานะเป็น 'รอตรวจสอบ'
     const updateQuery = `
-      UPDATE dbo.production_plan 
+      UPDATE production_plan 
       SET status = 'รอตรวจสอบ', shift = @shift 
       WHERE station = @station 
-      AND FORMAT(postingdate,'yyyy-mm-dd') BETWEEN @fromDate AND @toDate
+      AND postingdate BETWEEN @fromDate AND @toDate
     `;
     
     await pool.request()
@@ -313,8 +363,24 @@ export async function updateProductionPlan(dbConfig, station, fromDate, toDate, 
       .query(updateQuery);
     
     // Step 2: เพิ่มข้อมูลใหม่จาก GET_CD3DATA
+    // ต้องเชื่อมต่อฐานข้อมูลต้นฉบับเพื่อดึงข้อมูลจาก GET_CD3DATA
+    const sourceConfig = {
+      user: dbConfig.user,
+      password: dbConfig.password,
+      server: dbConfig.host,
+      database: dbConfig.database,
+      port: 1433,
+      options: {
+        encrypt: false,
+        trustServerCertificate: true
+      },
+      pool: { max: 2, min: 0, idleTimeoutMillis: 5000 }
+    };
+    
+    const sourcePool = await sql.connect(sourceConfig);
+    
     const insertQuery = `
-      INSERT INTO dbo.production_plan 
+      INSERT INTO production_plan 
       ([machine],[station],[material_code],[postingdate],[size],[ton],[change],[username],[shift],[Status],[complete])
       SELECT 
         machine,
@@ -329,14 +395,14 @@ export async function updateProductionPlan(dbConfig, station, fromDate, toDate, 
         'ผลิตแน่',
         -1
       FROM GET_CD3DATA 
-      WHERE FORMAT(doc_date,'yyyy-mm-dd') BETWEEN @fromDate AND @toDate
+      WHERE doc_date BETWEEN @fromDate AND @toDate
       AND rmd_size IS NOT NULL 
       AND rmd_qa_grade = 'A1' 
       AND rmd_weight > 0 
       GROUP BY machine, doc_date, rmd_size, material, rmd_period
     `;
     
-    await pool.request()
+    await sourcePool.request()
       .input('station', sql.VarChar, station)
       .input('changeTime', sql.DateTime, new Date())
       .input('user', sql.VarChar, user)
@@ -344,6 +410,7 @@ export async function updateProductionPlan(dbConfig, station, fromDate, toDate, 
       .input('toDate', sql.VarChar, toDate)
       .query(insertQuery);
     
+    await sourcePool.close();
     await pool.close();
     return { success: true, message: 'อัพเดตข้อมูลสำเร็จ' };
   } catch (err) {

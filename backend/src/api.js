@@ -1,4 +1,5 @@
 import express from 'express';
+import sql from 'mssql';
 import { getAllDbConfigs, getDbConfigByName, checkDbOnline, queryA2Rpt, queryA2RptSummary, queryA2RptSum, queryA2RptSummarySizeSum, queryStationData, queryPlanningData, updateProductionPlan } from './dbUtil.js';
 import xlsx from 'xlsx';
 
@@ -180,40 +181,246 @@ router.get('/a2rpt/export', async (req, res) => {
     res.status(500).json({ error: 'เกิดข้อผิดพลาดในการ export Excel', detail: err.message });
   }
 });
-
-// GET /api/compare/station?name=...&fromDate=...&toDate=... - ดึงข้อมูลจาก Station
-router.get('/compare/station', async (req, res) => {
-  const { name, fromDate, toDate } = req.query;
-  if (!name || !fromDate || !toDate) {
-    return res.status(400).json({ error: 'ต้องระบุ name, fromDate, toDate' });
-  }
-  const dbConfig = getDbConfigByName(name);
-  if (!dbConfig) {
-    return res.status(404).json({ error: 'ไม่พบเครื่องที่ระบุ' });
-  }
+// GET /api/compare/planning?name=...&station=...&fromDate=...&toDate=... - ดึงข้อมูลจาก Planning
+router.get('/compare/planning', async (req, res) => {
+  console.log('=== DEBUG: /api/compare/planning ===');
+  console.log('�� Request Parameters:');
+  console.log('  - name:', req.query.name);
+  console.log('  - station:', req.query.station);
+  console.log('  - fromDate:', req.query.fromDate);
+  console.log('  - toDate:', req.query.toDate);
+  
   try {
-    const data = await queryStationData(dbConfig, fromDate, toDate);
+    // Decode URL parameters
+    const name = decodeURIComponent(req.query.name || '');
+    const station = decodeURIComponent(req.query.station || '');
+    const fromDate = req.query.fromDate;
+    const toDate = req.query.toDate;
+    
+    console.log('�� Decoded Parameters:');
+    console.log('  - name:', name);
+    console.log('  - station:', station);
+    console.log('  - fromDate:', fromDate);
+    console.log('  - toDate:', toDate);
+    
+    if (!name || !station || !fromDate || !toDate) {
+      console.log('❌ Missing required parameters');
+      return res.status(400).json({ 
+        error: 'ต้องระบุ name, station, fromDate, toDate',
+        received: { name, station, fromDate, toDate }
+      });
+    }
+    
+    const dbConfig = getDbConfigByName(name);
+    if (!dbConfig) {
+      console.log('❌ Database config not found for:', name);
+      return res.status(404).json({ 
+        error: 'ไม่พบเครื่องที่ระบุ',
+        searchedName: name,
+        availableNames: getAllDbConfigs().map(db => db.name)
+      });
+    }
+    
+    console.log('�� Found DB Config:', {
+      name: dbConfig.name,
+      host: dbConfig.host,
+      database: dbConfig.database
+    });
+    
+    console.log('📊 Calling queryPlanningData...');
+    const data = await queryPlanningData(dbConfig, station, fromDate, toDate);
+    console.log('✅ Data retrieved successfully, count:', data.length);
+    
     res.json({ data });
   } catch (err) {
-    res.status(500).json({ error: 'เกิดข้อผิดพลาดในการดึงข้อมูล Station', detail: err.message });
+
+    
+    res.status(500).json({ 
+      error: 'เกิดข้อผิดพลาดในการดึงข้อมูล Planning', 
+      detail: err.message 
+    });
   }
 });
 
-// GET /api/compare/planning?name=...&station=...&fromDate=...&toDate=... - ดึงข้อมูลจาก Planning
-router.get('/compare/planning', async (req, res) => {
-  const { name, station, fromDate, toDate } = req.query;
-  if (!name || !station || !fromDate || !toDate) {
-    return res.status(400).json({ error: 'ต้องระบุ name, station, fromDate, toDate' });
-  }
-  const dbConfig = getDbConfigByName(name);
-  if (!dbConfig) {
-    return res.status(404).json({ error: 'ไม่พบเครื่องที่ระบุ' });
-  }
+// GET /api/compare/both?name=...&station=...&fromDate=...&toDate=... - ดึงข้อมูลทั้งสองฝั่งพร้อมกัน
+router.get('/compare/both', async (req, res) => {
+  console.log('=== DEBUG: /api/compare/both ===');
+  console.log('�� Request Parameters:');
+  console.log('  - name:', req.query.name);
+  console.log('  - station:', req.query.station);
+  console.log('  - fromDate:', req.query.fromDate);
+  console.log('  - toDate:', req.query.toDate);
+  
   try {
-    const data = await queryPlanningData(dbConfig, station, fromDate, toDate);
-    res.json({ data });
+    // Decode URL parameters
+    const name = decodeURIComponent(req.query.name || '');
+    const station = decodeURIComponent(req.query.station || '');
+    const fromDate = req.query.fromDate;
+    const toDate = req.query.toDate;
+    
+    console.log('�� Decoded Parameters:');
+    console.log('  - name:', name);
+    console.log('  - station:', station);
+    console.log('  - fromDate:', fromDate);
+    console.log('  - toDate:', toDate);
+    
+    if (!name || !station || !fromDate || !toDate) {
+      console.log('❌ Missing required parameters');
+      return res.status(400).json({ 
+        error: 'ต้องระบุ name, station, fromDate, toDate',
+        received: { name, station, fromDate, toDate }
+      });
+    }
+    
+    const dbConfig = getDbConfigByName(name);
+    if (!dbConfig) {
+      console.log('❌ Database config not found for:', name);
+      return res.status(404).json({ 
+        error: 'ไม่พบเครื่องที่ระบุ', 
+        searchedName: name,
+        availableNames: getAllDbConfigs().map(db => db.name)
+      });
+    }
+    
+    console.log('�� Found DB Config:', {
+      name: dbConfig.name,
+      host: dbConfig.host,
+      database: dbConfig.database
+    });
+    
+    console.log('📊 Fetching compare data...');
+    
+    const [stationData, planningData] = await Promise.all([
+      queryStationData(dbConfig, fromDate, toDate),
+      queryPlanningData(dbConfig, station, fromDate, toDate)
+    ]);
+    
+    console.log('✅ Data retrieved successfully:');
+    console.log('  - Station data count:', stationData.length);
+    console.log('  - Planning data count:', planningData.length);
+    
+    res.json({ 
+      station: { data: stationData },
+      planning: { data: planningData }
+    });
   } catch (err) {
-    res.status(500).json({ error: 'เกิดข้อผิดพลาดในการดึงข้อมูล Planning', detail: err.message });
+    console.error('❌ Error in /api/compare/both:');
+    console.error('  - Error message:', err.message);
+    console.error('  - Error code:', err.code);
+    console.error('  - Error state:', err.state);
+    console.error('  - Server name:', err.serverName);
+    console.error('  - Line number:', err.lineNumber);
+    console.error('  - Class:', err.class);
+    console.error('  - Number:', err.number);
+    
+    res.status(500).json({ 
+      error: 'เกิดข้อผิดพลาดในการดึงข้อมูลเปรียบเทียบ', 
+      detail: err.message,
+      stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    });
+  }
+});
+
+// GET /api/compare/planning_dev - ทดสอบการเชื่อมต่อและดึงข้อมูลล่าสุดจาก production_plan
+router.get('/compare/planning_dev', async (req, res) => {
+  console.log('=== DEBUG: /api/compare/planning_dev ===');
+  console.log('🔍 Testing database connection and latest data...');
+
+  // รับค่าจาก query string
+  const fromDate = req.query.fromDate;
+  const toDate = req.query.toDate;
+  console.log('  - fromDate:', fromDate);
+  console.log('  - toDate:', toDate);
+
+  try {
+    // ใช้ CEO_REPORT database สำหรับ production_plan
+    const ceoReportConfig = {
+      user: "sa",
+      password: "",
+      server: "192.168.100.222",
+      database: "ceo_report",
+      port: 1433,
+      options: {
+        encrypt: false,
+        trustServerCertificate: true
+      },
+      pool: { max: 2, min: 0, idleTimeoutMillis: 5000 }
+    };
+    
+    console.log('📋 CEO_REPORT Config:');
+    console.log('  - Server:', ceoReportConfig.server);
+    console.log('  - Database:', ceoReportConfig.database);
+    console.log('  - User:', ceoReportConfig.user);
+    console.log('  - Password:', ceoReportConfig.password ? '***' : '(blank)');
+    
+    let sqlQuery;
+    let request;
+    if (fromDate && toDate) {
+      sqlQuery = `
+        SELECT * 
+        FROM production_plan 
+        WHERE postingdate BETWEEN @fromDate AND @toDate
+        ORDER BY postingdate DESC
+      `;
+      console.log('📋 SQL Query (with date filter):');
+      console.log(sqlQuery);
+      request = (pool) => pool.request()
+        .input('fromDate', sql.VarChar, fromDate)
+        .input('toDate', sql.VarChar, toDate)
+        .query(sqlQuery);
+    } else {
+      sqlQuery = `
+        SELECT TOP 1 * 
+        FROM production_plan 
+        ORDER BY postingdate DESC
+      `;
+      console.log('📋 SQL Query (latest only):');
+      console.log(sqlQuery);
+      request = (pool) => pool.request().query(sqlQuery);
+    }
+    
+    console.log('🔌 Attempting to connect to CEO_REPORT...');
+    const pool = await sql.connect(ceoReportConfig);
+    console.log('✅ Connected to CEO_REPORT successfully');
+    
+    console.log('📊 Executing query...');
+    const result = await request(pool);
+    
+    console.log('✅ Query executed successfully');
+    console.log('📊 Result count:', result.recordset.length);
+    
+    if (result.recordset.length > 0) {
+      console.log('📋 Latest data:', result.recordset[0]);
+    } else {
+      console.log('📋 No data found');
+    }
+    
+    await pool.close();
+    console.log('🔌 Connection closed');
+    
+    res.json({ 
+      success: true,
+      message: 'ทดสอบการเชื่อมต่อสำเร็จ',
+      data: result.recordset,
+      recordCount: result.recordset.length
+    });
+    
+  } catch (err) {
+    console.error('❌ Error in /api/compare/planning_dev:');
+    console.error('  - Error message:', err.message);
+    console.error('  - Error code:', err.code);
+    console.error('  - Error state:', err.state);
+    console.error('  - Server name:', err.serverName);
+    console.error('  - Line number:', err.lineNumber);
+    console.error('  - Class:', err.class);
+    console.error('  - Number:', err.number);
+    
+    res.status(500).json({ 
+      error: 'เกิดข้อผิดพลาดในการทดสอบการเชื่อมต่อ', 
+      detail: err.message,
+      serverName: err.serverName,
+      errorCode: err.code
+    });
   }
 });
 
@@ -237,25 +444,47 @@ router.post('/compare/update', async (req, res) => {
 
 // GET /api/compare/both?name=...&station=...&fromDate=...&toDate=... - ดึงข้อมูลทั้งสองฝั่งพร้อมกัน
 router.get('/compare/both', async (req, res) => {
-  const { name, station, fromDate, toDate } = req.query;
-  if (!name || !station || !fromDate || !toDate) {
-    return res.status(400).json({ error: 'ต้องระบุ name, station, fromDate, toDate' });
-  }
-  const dbConfig = getDbConfigByName(name);
-  if (!dbConfig) {
-    return res.status(404).json({ error: 'ไม่พบเครื่องที่ระบุ' });
-  }
   try {
+    // Decode URL parameters
+    const name = decodeURIComponent(req.query.name || '');
+    const station = decodeURIComponent(req.query.station || '');
+    const fromDate = req.query.fromDate;
+    const toDate = req.query.toDate;
+    
+    if (!name || !station || !fromDate || !toDate) {
+      return res.status(400).json({ 
+        error: 'ต้องระบุ name, station, fromDate, toDate',
+        received: { name, station, fromDate, toDate }
+      });
+    }
+    
+    const dbConfig = getDbConfigByName(name);
+    if (!dbConfig) {
+      return res.status(404).json({ 
+        error: 'ไม่พบเครื่องที่ระบุ', 
+        searchedName: name,
+        availableNames: getAllDbConfigs().map(db => db.name)
+      });
+    }
+    
+    console.log('Fetching compare data:', { name, station, fromDate, toDate });
+    
     const [stationData, planningData] = await Promise.all([
       queryStationData(dbConfig, fromDate, toDate),
       queryPlanningData(dbConfig, station, fromDate, toDate)
     ]);
+    
     res.json({ 
       station: { data: stationData },
       planning: { data: planningData }
     });
   } catch (err) {
-    res.status(500).json({ error: 'เกิดข้อผิดพลาดในการดึงข้อมูลเปรียบเทียบ', detail: err.message });
+    console.error('Error in /api/compare/both:', err);
+    res.status(500).json({ 
+      error: 'เกิดข้อผิดพลาดในการดึงข้อมูลเปรียบเทียบ', 
+      detail: err.message,
+      stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    });
   }
 });
 
