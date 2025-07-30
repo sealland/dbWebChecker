@@ -42,6 +42,107 @@ router.get('/instances/status', async (req, res) => {
   res.json({ name, online });
 });
 
+// GET /api/instances/finish-goods?name=... - ดึงข้อมูล finish goods ล่าสุด
+router.get('/instances/finish-goods', async (req, res) => {
+  const { name } = req.query;
+  console.log('🔍 DEBUG: finish-goods API called with name:', name);
+  
+  if (!name) return res.status(400).json({ error: 'ต้องระบุ name' });
+  
+  const dbConfig = getDbConfigByName(name);
+  if (!dbConfig) {
+    console.log('❌ DEBUG: Database config not found for:', name);
+    return res.status(404).json({ error: 'ไม่พบเครื่องที่ระบุ' });
+  }
+  
+  console.log('✅ DEBUG: Found DB config:', { host: dbConfig.host, database: dbConfig.database });
+  
+  try {
+    const config = {
+      user: dbConfig.user,
+      password: dbConfig.password,
+      server: dbConfig.host,
+      database: dbConfig.database,
+      port: 1433,
+      options: {
+        encrypt: false,
+        trustServerCertificate: true
+      },
+      pool: { max: 2, min: 0, idleTimeoutMillis: 5000 }
+    };
+    
+    const sqlQuery = `
+      SELECT TOP 1 [rmd_size] as size
+      FROM [GET_CD3DATA]
+      ORDER BY doc_date DESC
+    `;
+    
+    const pool = await sql.connect(config);
+    const result = await pool.request().query(sqlQuery);
+    await pool.close();
+    
+    res.json(result.recordset[0] || { size: 'ไม่มีข้อมูล' });
+  } catch (err) {
+    console.error('Error fetching finish goods:', err.message);
+    res.status(500).json({ error: 'เกิดข้อผิดพลาดในการดึงข้อมูล', detail: err.message });
+  }
+});
+
+// GET /api/instances/production-plan?name=... - ดึงข้อมูลแผนผลิต
+router.get('/instances/production-plan', async (req, res) => {
+  const { name } = req.query;
+  console.log('🔍 DEBUG: production-plan API called with name:', name);
+  
+  if (!name) return res.status(400).json({ error: 'ต้องระบุ name' });
+  
+  const dbConfig = getDbConfigByName(name);
+  if (!dbConfig) {
+    console.log('❌ DEBUG: Database config not found for:', name);
+    return res.status(404).json({ error: 'ไม่พบเครื่องที่ระบุ' });
+  }
+  
+  console.log('✅ DEBUG: Found DB config for production plan');
+  
+  try {
+    // ใช้ CEO_REPORT database
+    const ceoReportConfig = {
+      user: "sa",
+      password: "",
+      server: "192.168.100.222",
+      database: "ceo_report",
+      port: 1433,
+      options: {
+        encrypt: false,
+        trustServerCertificate: true
+      },
+      pool: { max: 2, min: 0, idleTimeoutMillis: 5000 }
+    };
+    
+    const mappedStation = mapMachineToStation(name);
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    
+    const sqlQuery = `
+      SELECT dbo_tbl_mat_desc.maktx 
+      FROM dbo_production_plan 
+      INNER JOIN dbo_tbl_mat_desc ON dbo_production_plan.material_code = dbo_tbl_mat_desc.matnr
+      WHERE dbo_production_plan.station = @station 
+      AND FORMAT(dbo_production_plan.postingdate, 'yyyy-mm-dd') = @today
+    `;
+    
+    const pool = await sql.connect(ceoReportConfig);
+    const result = await pool.request()
+      .input('station', sql.VarChar, mappedStation)
+      .input('today', sql.VarChar, today)
+      .query(sqlQuery);
+    await pool.close();
+    
+    res.json(result.recordset[0] || { maktx: 'ไม่มีข้อมูล' });
+  } catch (err) {
+    console.error('Error fetching production plan:', err.message);
+    res.status(500).json({ error: 'เกิดข้อผิดพลาดในการดึงข้อมูล', detail: err.message });
+  }
+});
+
 // GET /api/a2rpt?name=...&year=2024&month=6&page=1&pageSize=20
 router.get('/a2rpt', async (req, res) => {
   const { name, year, month, page = 1, pageSize = 20 } = req.query;
