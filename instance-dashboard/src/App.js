@@ -97,6 +97,59 @@ function App() {
   const [planData, setPlanData] = useState([]); // ข้อมูลจาก Planning
   const [updating, setUpdating] = useState(false); // สถานะการอัพเดต
   const [loadingCompare, setLoadingCompare] = useState(false); // สถานะการโหลดข้อมูลเปรียบเทียบ
+  const [instanceDetails, setInstanceDetails] = useState({}); // ข้อมูลเพิ่มเติมของแต่ละเครื่อง
+  const [loadingDetails, setLoadingDetails] = useState({}); // สถานะการโหลดข้อมูลเพิ่มเติม
+
+  // ฟังก์ชันสำหรับดึงข้อมูลเพิ่มเติมของเครื่อง
+  const fetchInstanceDetails = async (instance) => {
+    if (!instance.online) return; // ไม่ดึงข้อมูลถ้าเครื่อง offline
+    
+    setLoadingDetails(prev => ({ ...prev, [instance.name]: true }));
+    
+    try {
+      // ดึงข้อมูล finish goods ล่าสุด
+      const finishGoodsResponse = await axios.get('http://localhost:4000/api/instances/finish-goods', {
+        params: { name: instance.name }
+      });
+      
+      // ดึงข้อมูลแผนผลิต
+      const productionPlanResponse = await axios.get('http://localhost:4000/api/instances/production-plan', {
+        params: { name: instance.name }
+      });
+      
+      setInstanceDetails(prev => ({
+        ...prev,
+        [instance.name]: {
+          finishGoods: finishGoodsResponse.data?.size || 'ไม่มีข้อมูล',
+          productionPlan: productionPlanResponse.data?.maktx || 'ไม่มีข้อมูล'
+        }
+      }));
+    } catch (error) {
+      console.error(`Error fetching details for ${instance.name}:`, error);
+      
+      // ตรวจสอบว่าเป็น network error หรือ API error
+      let finishGoodsMsg = 'ไม่สามารถเชื่อมต่อได้';
+      let productionPlanMsg = 'ไม่สามารถเชื่อมต่อได้';
+      
+      if (error.response?.status === 404) {
+        finishGoodsMsg = 'ไม่พบเครื่อง';
+        productionPlanMsg = 'ไม่พบเครื่อง';
+      } else if (error.response?.status === 500) {
+        finishGoodsMsg = 'ไม่มีข้อมูล';
+        productionPlanMsg = 'ไม่มีข้อมูล';
+      }
+      
+      setInstanceDetails(prev => ({
+        ...prev,
+        [instance.name]: {
+          finishGoods: finishGoodsMsg,
+          productionPlan: productionPlanMsg
+        }
+      }));
+    } finally {
+      setLoadingDetails(prev => ({ ...prev, [instance.name]: false }));
+    }
+  };
 
   // โหลดข้อมูล (ใช้ทั้ง auto และ manual refresh)
   const fetchInstances = async (showLoading = true) => {
@@ -106,6 +159,13 @@ function App() {
       const res = await axios.get(API_URL);
       setInstances(res.data);
       setLastUpdate(new Date());
+      
+      // ดึงข้อมูลเพิ่มเติมสำหรับเครื่องที่ online
+      res.data.forEach(instance => {
+        if (instance.online) {
+          fetchInstanceDetails(instance);
+        }
+      });
     } catch {
       setInstances([]);
     } finally {
@@ -427,14 +487,54 @@ function App() {
                         }} />
                         <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2, py: 3 }}>
                           <StatusAvatar online={instance.online} />
-                          <Box>
+                          <Box sx={{ flex: 1 }}>
                             <Typography variant="h6" fontWeight={700} sx={{ color: '#222', mb: 0.5 }}>
                               {instance.name}
                             </Typography>
-                            <Typography variant="body2" color="text.secondary" sx={{ fontSize: 15 }}>
+                            <Typography variant="body2" color="text.secondary" sx={{ fontSize: 15, mb: 1 }}>
                               {instance.host}
                             </Typography>
-                            {/* ซ่อนบรรทัด DB: */}
+                            
+                            {/* ข้อมูลเพิ่มเติม - แสดงเฉพาะเมื่อเครื่อง online */}
+                            {instance.online && (
+                              <Box sx={{ mt: 1 }}>
+                                {/* Finish Goods ล่าสุด */}
+                                <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
+                                  <Typography variant="caption" color="primary" sx={{ fontWeight: 600, mr: 1 }}>
+                                    Finish Goods:
+                                  </Typography>
+                                  {loadingDetails[instance.name] ? (
+                                    <CircularProgress size={12} />
+                                  ) : (
+                                    <Typography 
+                                      variant="caption" 
+                                      color={instanceDetails[instance.name]?.finishGoods?.includes('ไม่สามารถ') ? 'error' : 'text.secondary'}
+                                      sx={{ fontStyle: instanceDetails[instance.name]?.finishGoods?.includes('ไม่') ? 'italic' : 'normal' }}
+                                    >
+                                      {instanceDetails[instance.name]?.finishGoods || 'กำลังโหลด...'}
+                                    </Typography>
+                                  )}
+                                </Box>
+                                
+                                {/* แผนผลิต */}
+                                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                  <Typography variant="caption" color="primary" sx={{ fontWeight: 600, mr: 1 }}>
+                                    Plan:
+                                  </Typography>
+                                  {loadingDetails[instance.name] ? (
+                                    <CircularProgress size={12} />
+                                  ) : (
+                                    <Typography 
+                                      variant="caption" 
+                                      color={instanceDetails[instance.name]?.productionPlan?.includes('ไม่สามารถ') ? 'error' : 'text.secondary'}
+                                      sx={{ fontStyle: instanceDetails[instance.name]?.productionPlan?.includes('ไม่') ? 'italic' : 'normal' }}
+                                    >
+                                      {instanceDetails[instance.name]?.productionPlan || 'กำลังโหลด...'}
+                                    </Typography>
+                                  )}
+                                </Box>
+                              </Box>
+                            )}
                           </Box>
                         </CardContent>
                       </Card>
@@ -474,7 +574,7 @@ function App() {
                 Process
               </Typography>
               <List>
-                <ListItem button onClick={() => { setCompareOpen(true); fetchCompareData(); }} sx={{ borderRadius: 2 }}>
+                <ListItem button onClick={openCompareDrawer} sx={{ borderRadius: 2 }}>
                   <ListItemIcon>
                     <SettingsIcon />
                   </ListItemIcon>
