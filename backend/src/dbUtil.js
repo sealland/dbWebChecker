@@ -293,12 +293,28 @@ export async function queryStationData(dbConfig, fromDate, toDate) {
 }
 
 export async function queryPlanningData(dbConfig, station, fromDate, toDate) {
+  console.log('🚨🚨🚨 DEBUG: queryPlanningData called with station:', station);
+  console.log('🚨🚨🚨 DEBUG: This is the NEW version of queryPlanningData');
+  
   // ใช้ CEO_REPORT database สำหรับ production_plan
+  const ceoReportDbConfig = getDbConfigByName("CEO Report");
+  if (!ceoReportDbConfig) {
+    throw new Error("ไม่พบการตั้งค่าฐานข้อมูล CEO Report");
+  }
+  
+  console.log('🔍 DEBUG: CEO Report Config:', {
+    name: ceoReportDbConfig.name,
+    host: ceoReportDbConfig.host,
+    database: ceoReportDbConfig.database,
+    user: ceoReportDbConfig.user,
+    password: ceoReportDbConfig.password ? '***' : '(empty)'
+  });
+  
   const ceoReportConfig = {
-    user: "sa",
-    password: "",
-    server: "192.168.100.222",
-    database: "ceo_report",
+    user: ceoReportDbConfig.user,
+    password: ceoReportDbConfig.password,
+    server: ceoReportDbConfig.host,
+    database: ceoReportDbConfig.database,
     port: 1433,
     options: {
       encrypt: false,
@@ -307,22 +323,33 @@ export async function queryPlanningData(dbConfig, station, fromDate, toDate) {
     pool: { max: 2, min: 0, idleTimeoutMillis: 5000 }
   };
   
+  // ใช้ mapMachineToStation เพื่อแปลง station name
+  const mappedStation = mapMachineToStation(station);
+  console.log('🔄 Mapping station:', station, '→', mappedStation);
+  
   const sqlQuery = `
     SELECT postingdate, material_code, size
     FROM production_plan
     WHERE postingdate BETWEEN @fromDate AND @toDate
+    AND station = @station
   `;
+  
+  console.log('🔍 DEBUG: SQL Query:', sqlQuery);
+  console.log('🔍 DEBUG: Parameters:', { fromDate, toDate, station: mappedStation });
   
   try {
     const pool = await sql.connect(ceoReportConfig);
     const result = await pool.request()
       .input('fromDate', sql.VarChar, fromDate)
       .input('toDate', sql.VarChar, toDate)
+      .input('station', sql.VarChar, mappedStation)
       .query(sqlQuery);
     
     await pool.close();
+    console.log('🔍 DEBUG: Query result count:', result.recordset.length);
     return result.recordset;
   } catch (err) {
+    console.error('🚨 DEBUG: Query error:', err.message);
     throw err;
   }
 }
