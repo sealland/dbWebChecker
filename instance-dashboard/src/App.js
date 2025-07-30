@@ -36,10 +36,12 @@ import CancelIcon from '@mui/icons-material/Cancel';
 import MenuIcon from '@mui/icons-material/Menu';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import GetAppIcon from '@mui/icons-material/GetApp';
+import WifiIcon from '@mui/icons-material/Wifi';
 import { useLocation } from 'react-router-dom';
 
-const API_URL = 'https://whs.zubbsteel.com/api/instances';
-const REFRESH_INTERVAL = 30000; // 30 วินาที
+const API_URL = 'http://localhost:4000/api/instances';
+const REFRESH_INTERVAL = 300000; // 5 นาที (5 * 60 * 1000 = 300000 ms)
 
 function StatusAvatar({ online }) {
   return (
@@ -84,7 +86,7 @@ function groupByCategory(instances) {
 
 function App() {
   const [instances, setInstances] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [lastUpdate, setLastUpdate] = useState(null);
@@ -97,6 +99,11 @@ function App() {
   const [planData, setPlanData] = useState([]); // ข้อมูลจาก Planning
   const [updating, setUpdating] = useState(false); // สถานะการอัพเดต
   const [loadingCompare, setLoadingCompare] = useState(false); // สถานะการโหลดข้อมูลเปรียบเทียบ
+  const [instanceDetails, setInstanceDetails] = useState({}); // ข้อมูลเพิ่มเติมของแต่ละเครื่อง
+  const [loadingDetails, setLoadingDetails] = useState({}); // สถานะการโหลดข้อมูลเพิ่มเติม
+  const [lastFetchTime, setLastFetchTime] = useState({}); // เวลาที่เรียก API ล่าสุด
+  const [loadingStatus, setLoadingStatus] = useState({}); // สถานะการเช็คสถานะเครื่อง
+  const [loadingProduction, setLoadingProduction] = useState({}); // สถานะการดึงข้อมูลผลิต
 
   // โหลดข้อมูล (ใช้ทั้ง auto และ manual refresh)
   const fetchInstances = async (showLoading = true) => {
@@ -114,19 +121,78 @@ function App() {
     }
   };
 
-  // โหลดครั้งแรก
-  useEffect(() => {
-    fetchInstances();
-    // eslint-disable-next-line
-  }, []);
+  // ฟังก์ชันเช็คสถานะเครื่อง
+  const checkMachineStatus = async (instance) => {
+    setLoadingStatus(prev => ({ ...prev, [instance.name]: true }));
+    try {
+      const response = await axios.get(`${API_URL}/status`, {
+        params: { name: instance.name }
+      });
+      
+      // อัพเดตสถานะใน instances array
+      setInstances(prev => prev.map(inst => 
+        inst.name === instance.name 
+          ? { ...inst, online: response.data.online }
+          : inst
+      ));
+      
+      console.log(`✅ ${instance.name} status:`, response.data.online ? 'online' : 'offline');
+    } catch (error) {
+      console.error(`❌ Error checking status for ${instance.name}:`, error);
+      // อัพเดตสถานะเป็น offline ถ้าเกิดข้อผิดพลาด
+      setInstances(prev => prev.map(inst => 
+        inst.name === instance.name 
+          ? { ...inst, online: false }
+          : inst
+      ));
+    } finally {
+      setLoadingStatus(prev => ({ ...prev, [instance.name]: false }));
+    }
+  };
 
-  // Auto refresh ทุก 30 วินาที
-  useEffect(() => {
-    timerRef.current = setInterval(() => {
-      fetchInstances(false);
-    }, REFRESH_INTERVAL);
-    return () => clearInterval(timerRef.current);
-  }, []);
+  // ฟังก์ชันดึงข้อมูลผลิตล่าสุด
+  const fetchLatestProductionData = async (instance) => {
+    setLoadingProduction(prev => ({ ...prev, [instance.name]: true }));
+    try {
+      console.log(`🔍 Fetching production data for: ${instance.name}`);
+      
+      // เรียก card-data API เฉพาะเครื่องที่เลือก
+      const cardDataResponse = await axios.get(`http://localhost:4000/api/instances/card-data/${encodeURIComponent(instance.name)}`);
+      
+      if (cardDataResponse.data.success) {
+        const cardData = cardDataResponse.data.data;
+        
+        console.log(`✅ Production data for ${instance.name}:`, cardData);
+        
+        setInstanceDetails(prev => ({
+          ...prev,
+          [instance.name]: cardData
+        }));
+      } else {
+        console.log(`❌ No production data found for: ${instance.name}`);
+        setInstanceDetails(prev => ({
+          ...prev,
+          [instance.name]: {
+            finishGoods: 'ไม่มีข้อมูล',
+            lastProductionDate: 'ไม่มีข้อมูล',
+            productionPlan: 'ไม่มีข้อมูล'
+          }
+        }));
+      }
+    } catch (error) {
+      console.error(`❌ Error fetching production data for ${instance.name}:`, error);
+      setInstanceDetails(prev => ({
+        ...prev,
+        [instance.name]: {
+          finishGoods: 'ไม่สามารถดึงข้อมูลได้',
+          lastProductionDate: 'ไม่สามารถดึงข้อมูลได้',
+          productionPlan: 'ไม่สามารถดึงข้อมูลได้'
+        }
+      }));
+    } finally {
+      setLoadingProduction(prev => ({ ...prev, [instance.name]: false }));
+    }
+  };
 
   // รับค่า plant จาก query string
   const plant = query.get('plant');
@@ -154,6 +220,61 @@ function App() {
     setSelected(null);
   };
 
+  // ฟังก์ชันสำหรับดึงข้อมูลเพิ่มเติมของเครื่อง
+  const fetchInstanceDetails = async (instance) => {
+    if (!instance.online) return; // ไม่ดึงข้อมูลถ้าเครื่อง offline
+    
+    setLoadingDetails(prev => ({ ...prev, [instance.name]: true }));
+    
+    try {
+      // ส่งชื่อเครื่องเต็มไปให้ backend
+      const machineParam = instance.name;
+      
+      console.log('🔍 Fetching details for:', instance.name, '→', machineParam);
+      
+      // ดึงข้อมูล finish goods ล่าสุด
+      console.log('🔍 Calling finish-goods API with param:', machineParam);
+      const finishGoodsResponse = await axios.get('http://localhost:4000/api/instances/finish-goods', {
+        params: { name: machineParam }
+      });
+      console.log('🔍 Finish goods response:', finishGoodsResponse.data);
+      
+      // ดึงข้อมูลแผนผลิต
+      console.log('🔍 Calling production-plan API with param:', machineParam);
+      const productionPlanResponse = await axios.get('http://localhost:4000/api/instances/production-plan', {
+        params: { name: machineParam }
+      });
+      console.log('🔍 Production plan response:', productionPlanResponse.data);
+      
+      const cardData = {
+        finishGoods: finishGoodsResponse.data?.size || 'ไม่มีข้อมูล',
+        productionPlan: productionPlanResponse.data?.maktx || 'ไม่มีข้อมูล'
+      };
+      
+      console.log('🔍 Setting card data for:', instance.name, cardData);
+      
+      setInstanceDetails(prev => {
+        const newState = {
+          ...prev,
+          [instance.name]: cardData
+        };
+        console.log('🔍 Updated instanceDetails state:', newState);
+        return newState;
+      });
+    } catch (error) {
+      console.error(`Error fetching details for ${instance.name}:`, error);
+      setInstanceDetails(prev => ({
+        ...prev,
+        [instance.name]: {
+          finishGoods: 'ไม่สามารถดึงข้อมูลได้',
+          productionPlan: 'ไม่สามารถดึงข้อมูลได้'
+        }
+      }));
+    } finally {
+      setLoadingDetails(prev => ({ ...prev, [instance.name]: false }));
+    }
+  };
+
   // ดึงข้อมูลเปรียบเทียบจาก API
   const fetchCompareData = async () => {
     if (!compareDates.from || !compareDates.to || !selected) {
@@ -163,7 +284,7 @@ function App() {
     setLoadingCompare(true);
     try {
       // ดึงข้อมูลทั้งสองฝั่งพร้อมกัน
-      const response = await axios.get('https://whs.zubbsteel.com/api/compare/both', {
+      const response = await axios.get('http://localhost:4000/api/compare/both', {
         params: {
           name: selected.name,
           station: selected.name, // ใช้ชื่อเครื่องเป็น station
@@ -191,7 +312,7 @@ function App() {
     
     setUpdating(true);
     try {
-      const response = await axios.post('https://whs.zubbsteel.com/api/compare/update', {
+      const response = await axios.post('http://localhost:4000/api/compare/update', {
         name: selected.name,
         station: selected.name,
         fromDate: compareDates.from,
@@ -215,6 +336,23 @@ function App() {
   const formatTime = (date) => {
     if (!date) return '';
     return date.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  };
+
+  // ฟังก์ชันสำหรับ format วันที่เป็น YYYY-MM-DD
+  const formatDateForInput = (date) => {
+    if (!date) return '';
+    const d = new Date(date);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  // ฟังก์ชันสำหรับเปิด compare drawer พร้อม set วันที่ default
+  const openCompareDrawer = () => {
+    const today = formatDateForInput(new Date());
+    setCompareDates({ from: today, to: today });
+    setCompareOpen(true);
   };
 
   // Drawer เปรียบเทียบข้อมูล
@@ -276,7 +414,6 @@ function App() {
                     <TableCell>วันที่</TableCell>
                     <TableCell>Material</TableCell>
                     <TableCell>Size</TableCell>
-                    <TableCell>Check</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -295,10 +432,9 @@ function App() {
                   ) : (
                     stationData.map((row, idx) => (
                       <TableRow key={idx}>
-                        <TableCell>{row.doc_date}</TableCell>
+                        <TableCell>{formatDateForInput(row.doc_date)}</TableCell>
                         <TableCell>{row.material}</TableCell>
                         <TableCell>{row.rmd_size}</TableCell>
-                        <TableCell>{row['chk-a']}</TableCell>
                       </TableRow>
                     ))
                   )}
@@ -340,7 +476,7 @@ function App() {
                   ) : (
                     planData.map((row, idx) => (
                       <TableRow key={idx}>
-                        <TableCell>{row.postingdate}</TableCell>
+                        <TableCell>{formatDateForInput(row.postingdate)}</TableCell>
                         <TableCell>{row.material_code}</TableCell>
                         <TableCell>{row.size}</TableCell>
                       </TableRow>
@@ -372,7 +508,7 @@ function App() {
           <Typography variant="h5" fontWeight={700} color="primary.main" sx={{ flexGrow: 1 }}>
             Instance Status Dashboard
           </Typography>
-          <Tooltip title="Refresh">
+          <Tooltip title="โหลดรายชื่อเครื่อง">
             <span>
               <IconButton color="primary" onClick={() => fetchInstances()} disabled={refreshing}>
                 {refreshing ? <CircularProgress size={24} /> : <RefreshIcon />}
@@ -384,13 +520,26 @@ function App() {
       <Box sx={{ p: { xs: 2, sm: 4 }, maxWidth: 1400, mx: 'auto', mt: 4 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, gap: 2 }}>
           <Typography variant="body2" color="text.secondary">
-            อัปเดตล่าสุด: {lastUpdate ? formatTime(lastUpdate) : '-'}
+            {lastUpdate ? `อัปเดตล่าสุด: ${formatTime(lastUpdate)}` : 'ยังไม่ได้โหลดข้อมูล'}
           </Typography>
           {refreshing && <CircularProgress size={16} />}
         </Box>
         {loading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}>
             <CircularProgress />
+          </Box>
+        ) : instances.length === 0 ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8, flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+            <Typography variant="h6" color="text.secondary">
+              ยังไม่มีข้อมูลเครื่อง
+            </Typography>
+            <Button 
+              variant="contained" 
+              onClick={() => fetchInstances()}
+              startIcon={<RefreshIcon />}
+            >
+              โหลดรายชื่อเครื่อง
+            </Button>
           </Box>
         ) : (
           Object.entries(grouped).map(([category, items]) => (
@@ -405,36 +554,315 @@ function App() {
                       <Card
                         sx={{
                           cursor: 'pointer',
-                          borderRadius: 4,
-                          boxShadow: 3,
-                          transition: '0.2s',
+                          borderRadius: 3,
+                          boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+                          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                           position: 'relative',
-                          overflow: 'visible',
+                          overflow: 'hidden',
+                          minHeight: 320,
+                          minWidth: 320,
+                          background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
+                          border: '1px solid rgba(0,0,0,0.05)',
                           '&:hover': {
-                            boxShadow: 8,
-                            transform: 'translateY(-4px) scale(1.03)',
+                            boxShadow: '0 8px 40px rgba(0,0,0,0.15)',
+                            transform: 'translateY(-8px) scale(1.02)',
+                            borderColor: instance.online ? 'primary.main' : 'error.main',
                           },
+                          '&::before': {
+                            content: '""',
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            height: 4,
+                            background: instance.online 
+                              ? 'linear-gradient(90deg, #4caf50, #66bb6a)' 
+                              : 'linear-gradient(90deg, #f44336, #ef5350)',
+                            zIndex: 1
+                          }
                         }}
                         onClick={() => handleCardClick(instance)}
                       >
-                        {/* Status bar */}
-                        <Box sx={{
-                          height: 8,
-                          width: '100%',
-                          bgcolor: instance.online ? 'success.main' : 'error.main',
-                          borderTopLeftRadius: 16,
-                          borderTopRightRadius: 16,
-                        }} />
-                        <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2, py: 3 }}>
-                          <StatusAvatar online={instance.online} />
-                          <Box>
-                            <Typography variant="h6" fontWeight={700} sx={{ color: '#222', mb: 0.5 }}>
-                              {instance.name}
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary" sx={{ fontSize: 15 }}>
-                              {instance.host}
-                            </Typography>
-                            {/* ซ่อนบรรทัด DB: */}
+                        <CardContent sx={{ p: 0, height: '100%', display: 'flex', flexDirection: 'column' }}>
+                          {/* Header Section with Gradient Background */}
+                          <Box sx={{
+                            background: instance.online 
+                              ? 'linear-gradient(135deg, #e8f5e8 0%, #f1f8e9 100%)'
+                              : 'linear-gradient(135deg, #ffebee 0%, #fce4ec 100%)',
+                            p: 3,
+                            borderBottom: '1px solid rgba(0,0,0,0.05)',
+                            position: 'relative'
+                          }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                              <Box sx={{ position: 'relative' }}>
+                                <Avatar 
+                                  sx={{ 
+                                    width: 60, 
+                                    height: 60, 
+                                    bgcolor: instance.online ? 'success.main' : 'grey.400',
+                                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                                    border: '3px solid white'
+                                  }}
+                                >
+                                  <PowerSettingsNewIcon sx={{ fontSize: 28 }} />
+                                </Avatar>
+                                <Box sx={{
+                                  position: 'absolute',
+                                  top: -2,
+                                  right: -2,
+                                  width: 20,
+                                  height: 20,
+                                  borderRadius: '50%',
+                                  bgcolor: instance.online ? '#4caf50' : '#f44336',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  border: '2px solid white',
+                                  boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
+                                }}>
+                                  {instance.online ? (
+                                    <CheckCircleIcon sx={{ fontSize: 12, color: 'white' }} />
+                                  ) : (
+                                    <CancelIcon sx={{ fontSize: 12, color: 'white' }} />
+                                  )}
+                                </Box>
+                              </Box>
+                              <Box sx={{ flex: 1 }}>
+                                <Typography variant="h6" fontWeight={700} sx={{ 
+                                  color: '#1a237e', 
+                                  mb: 0.5,
+                                  fontSize: '1.1rem'
+                                }}>
+                                  {instance.name}
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary" sx={{ 
+                                  fontSize: 13,
+                                  opacity: 0.8
+                                }}>
+                                  {instance.host}
+                                </Typography>
+                                <Box sx={{ 
+                                  display: 'flex', 
+                                  alignItems: 'center', 
+                                  mt: 1,
+                                  gap: 1
+                                }}>
+                                  <Box sx={{
+                                    width: 8,
+                                    height: 8,
+                                    borderRadius: '50%',
+                                    bgcolor: instance.online ? '#4caf50' : '#f44336',
+                                    animation: instance.online ? 'pulse 2s infinite' : 'none',
+                                    '@keyframes pulse': {
+                                      '0%': { opacity: 1 },
+                                      '50%': { opacity: 0.5 },
+                                      '100%': { opacity: 1 }
+                                    }
+                                  }} />
+                                  <Typography variant="caption" sx={{ 
+                                    color: instance.online ? '#4caf50' : '#f44336',
+                                    fontWeight: 600,
+                                    textTransform: 'uppercase',
+                                    letterSpacing: 0.5
+                                  }}>
+                                    {instance.online ? 'Online' : 'Offline'}
+                                  </Typography>
+                                </Box>
+                              </Box>
+                            </Box>
+                          </Box>
+                          
+                          {/* Production Data Section */}
+                          <Box sx={{ flex: 1, p: 3, display: 'flex', flexDirection: 'column' }}>
+                            {instanceDetails[instance.name] ? (
+                              <Box sx={{ flex: 1 }}>
+                                <Typography variant="subtitle1" fontWeight={600} color="primary" sx={{ 
+                                  mb: 3,
+                                  fontSize: '1rem',
+                                  textAlign: 'center',
+                                  color: '#1976d2'
+                                }}>
+                                  📊 ข้อมูลการผลิตล่าสุด
+                                </Typography>
+                                
+                                {/* Finish Goods */}
+                                <Box sx={{ 
+                                  mb: 3,
+                                  p: 2,
+                                  bgcolor: 'rgba(25, 118, 210, 0.05)',
+                                  borderRadius: 2,
+                                  border: '1px solid rgba(25, 118, 210, 0.1)'
+                                }}>
+                                  <Typography variant="caption" color="text.secondary" sx={{ 
+                                    fontWeight: 600, 
+                                    mb: 1,
+                                    display: 'block',
+                                    textTransform: 'uppercase',
+                                    letterSpacing: 0.5
+                                  }}>
+                                    🏭 Finish Goods
+                                  </Typography>
+                                  <Typography variant="body1" color="text.primary" sx={{ 
+                                    fontWeight: 700, 
+                                    fontSize: 18,
+                                    color: '#1976d2'
+                                  }}>
+                                    {instanceDetails[instance.name]?.finishGoods || 'ไม่มีข้อมูล'}
+                                  </Typography>
+                                </Box>
+                                
+                                {/* Last Production Date */}
+                                <Box sx={{ 
+                                  mb: 3,
+                                  p: 2,
+                                  bgcolor: 'rgba(76, 175, 80, 0.05)',
+                                  borderRadius: 2,
+                                  border: '1px solid rgba(76, 175, 80, 0.1)'
+                                }}>
+                                  <Typography variant="caption" color="text.secondary" sx={{ 
+                                    fontWeight: 600, 
+                                    mb: 1,
+                                    display: 'block',
+                                    textTransform: 'uppercase',
+                                    letterSpacing: 0.5
+                                  }}>
+                                    📅 วันที่ผลิตล่าสุด
+                                  </Typography>
+                                  <Typography variant="body1" color="text.primary" sx={{ 
+                                    fontWeight: 700, 
+                                    fontSize: 18,
+                                    color: '#4caf50'
+                                  }}>
+                                    {instanceDetails[instance.name]?.lastProductionDate || 'ไม่มีข้อมูล'}
+                                  </Typography>
+                                </Box>
+                                
+                                {/* Production Plan */}
+                                <Box sx={{ 
+                                  p: 2,
+                                  bgcolor: 'rgba(255, 152, 0, 0.05)',
+                                  borderRadius: 2,
+                                  border: '1px solid rgba(255, 152, 0, 0.1)'
+                                }}>
+                                  <Typography variant="caption" color="text.secondary" sx={{ 
+                                    fontWeight: 600, 
+                                    mb: 1,
+                                    display: 'block',
+                                    textTransform: 'uppercase',
+                                    letterSpacing: 0.5
+                                  }}>
+                                    📋 แผนการผลิต
+                                  </Typography>
+                                  <Typography variant="body1" color="text.primary" sx={{ 
+                                    fontWeight: 700, 
+                                    fontSize: 18,
+                                    color: '#ff9800'
+                                  }}>
+                                    {instanceDetails[instance.name]?.productionPlan || 'ไม่มีข้อมูล'}
+                                  </Typography>
+                                </Box>
+                              </Box>
+                            ) : (
+                              <Box sx={{ 
+                                flex: 1, 
+                                display: 'flex', 
+                                flexDirection: 'column', 
+                                alignItems: 'center', 
+                                justifyContent: 'center',
+                                textAlign: 'center',
+                                py: 4
+                              }}>
+                                <Box sx={{
+                                  width: 80,
+                                  height: 80,
+                                  borderRadius: '50%',
+                                  bgcolor: 'rgba(0,0,0,0.05)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  mb: 2
+                                }}>
+                                  <GetAppIcon sx={{ fontSize: 40, color: 'rgba(0,0,0,0.3)' }} />
+                                </Box>
+                                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                                  ยังไม่มีข้อมูลการผลิต
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary" sx={{ opacity: 0.7 }}>
+                                  กดปุ่มด้านล่างเพื่อดึงข้อมูล
+                                </Typography>
+                              </Box>
+                            )}
+                          </Box>
+                          
+                          {/* Action Buttons Section */}
+                          <Box sx={{ 
+                            p: 3,
+                            background: 'linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)',
+                            borderTop: '1px solid rgba(0,0,0,0.05)',
+                            display: 'flex',
+                            gap: 2
+                          }}>
+                            <Tooltip title="เช็คสถานะเครื่อง">
+                              <IconButton
+                                size="large"
+                                color="primary"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  checkMachineStatus(instance);
+                                }}
+                                disabled={loadingStatus[instance.name]}
+                                sx={{ 
+                                  bgcolor: 'primary.main', 
+                                  color: 'white',
+                                  '&:hover': { 
+                                    bgcolor: 'primary.dark',
+                                    transform: 'scale(1.05)'
+                                  },
+                                  '&:disabled': { bgcolor: 'grey.300' },
+                                  flex: 1,
+                                  height: 48,
+                                  boxShadow: '0 4px 12px rgba(25, 118, 210, 0.3)',
+                                  transition: 'all 0.2s ease'
+                                }}
+                              >
+                                {loadingStatus[instance.name] ? (
+                                  <CircularProgress size={24} color="inherit" />
+                                ) : (
+                                  <WifiIcon fontSize="large" />
+                                )}
+                              </IconButton>
+                            </Tooltip>
+                            
+                            <Tooltip title="ดึงข้อมูลผลิตล่าสุด">
+                              <IconButton
+                                size="large"
+                                color="secondary"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  fetchLatestProductionData(instance);
+                                }}
+                                disabled={loadingProduction[instance.name]}
+                                sx={{ 
+                                  bgcolor: 'secondary.main', 
+                                  color: 'white',
+                                  '&:hover': { 
+                                    bgcolor: 'secondary.dark',
+                                    transform: 'scale(1.05)'
+                                  },
+                                  '&:disabled': { bgcolor: 'grey.300' },
+                                  flex: 1,
+                                  height: 48,
+                                  boxShadow: '0 4px 12px rgba(156, 39, 176, 0.3)',
+                                  transition: 'all 0.2s ease'
+                                }}
+                              >
+                                {loadingProduction[instance.name] ? (
+                                  <CircularProgress size={24} color="inherit" />
+                                ) : (
+                                  <GetAppIcon fontSize="large" />
+                                )}
+                              </IconButton>
+                            </Tooltip>
                           </Box>
                         </CardContent>
                       </Card>
@@ -474,7 +902,7 @@ function App() {
                 Process
               </Typography>
               <List>
-                <ListItem button onClick={() => { setCompareOpen(true); fetchCompareData(); }} sx={{ borderRadius: 2 }}>
+                <ListItem button onClick={openCompareDrawer} sx={{ borderRadius: 2 }}>
                   <ListItemIcon>
                     <SettingsIcon />
                   </ListItemIcon>

@@ -4,7 +4,7 @@ import bodyParser from 'body-parser';
 import apiRouter from './api.js';
 
 const app = express();
-const PORT = process.env.PORT || 4001;
+const PORT = process.env.PORT || 4000;
 
 // CORS configuration
 app.use(cors({

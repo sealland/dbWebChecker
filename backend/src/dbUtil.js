@@ -5,7 +5,7 @@ import { exec } from 'child_process';
 
 
 
-const configPath = 'D:\\httpdoc\\wh\\dbWebChecker\\db_instances.config.json';
+const configPath = path.join(process.cwd(), '..', 'db_instances.config.json');
 const dbInstances = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
 
 export function getDbConfigByName(name) {
@@ -28,9 +28,108 @@ function pingHost(host) {
 }
 
 // เพิ่มฟังก์ชันนี้หลัง import statements
-function mapMachineToStation(machineName) {
+export function mapMachineToStation(machineName) {
   console.log('🔄 Mapping machine name:', machineName);
   
+  // ดึงข้อมูลจาก config file
+  const configPath = path.join(process.cwd(), '..', 'db_instances.config.json');
+  const dbInstances = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+  
+  // หาเครื่องที่ตรงกับชื่อ
+  const machineConfig = dbInstances.find(instance => instance.name === machineName);
+  
+  if (machineConfig && machineConfig.m) {
+    // แปลง mapping สำหรับเครื่องตัดแผ่น
+    let mappedStation = machineConfig.m;
+    
+    // แปลง plates1, plates2, plates4 เป็น P1, P2, P4 สำหรับ production_scale
+    if (machineConfig.m === 'plates1') {
+      mappedStation = 'P1';
+      console.log(`  → Converting ${machineConfig.m} → ${mappedStation} for production_scale`);
+    } else if (machineConfig.m === 'plates2') {
+      mappedStation = 'P2';
+      console.log(`  → Converting ${machineConfig.m} → ${mappedStation} for production_scale`);
+    } else if (machineConfig.m === 'plates4') {
+      mappedStation = 'P4';
+      console.log(`  → Converting ${machineConfig.m} → ${mappedStation} for production_scale`);
+    }
+    
+    console.log('  → Found in config, using m field:', machineConfig.m);
+    console.log('  → Final mapped station:', mappedStation);
+    return mappedStation;
+  }
+  
+  // Fallback mapping สำหรับเครื่องที่ไม่มีใน config
+  const mapping = {
+    // ท่อดำ - ใช้ I1-I8 (ตรงกับ production_scale)
+    'ท่อดำ #1': 'I1',
+    'ท่อดำ #2': 'I2', 
+    'ท่อดำ #3': 'I3',
+    'ท่อดำ #4': 'I4',
+    'ท่อดำ #5': 'I5',
+    'ท่อดำ #6': 'I6',
+    'ท่อดำ #7': 'I7',
+    'ท่อดำ #8': 'I8',
+    
+    // ตัวซี - ใช้ c1-c6 (ตัวพิมพ์เล็ก ตรงกับ production_scale)
+    'ตัวซี #1': 'c1',
+    'ตัวซี #2': 'c2',
+    'ตัวซี #3': 'C3',
+    'ตัวซี #4': 'C4',
+    'ตัวซี #5': 'c5',
+    'ตัวซี #6': 'C6',
+    
+    // ตัดแผ่น - ใช้ P1, P2, P4 สำหรับ production_scale
+    'ตัดแผ่น 1': 'P1',
+    'ตัดแผ่น 2': 'P2',
+    'ตัดแผ่น 4': 'P4',
+    
+    // สลิท
+    'สลิท#1': 'S1',
+    'สลิท#2': 'S2',
+    'สลิท#3': 'S3',
+    
+    // OPS
+    'OPS 3': 'ops3',
+    'OPS 4': 'ops4',
+    
+    // SPS
+    'SPS 2(CH6)': 'sps2ch6',
+    'SPS 2(CH4)': 'sps2ch4'
+  };
+  
+  const mappedStation = mapping[machineName] || machineName;
+  console.log('  → Mapped to:', mappedStation);
+  
+  return mappedStation;
+}
+
+// เพิ่มฟังก์ชันใหม่สำหรับแปลงชื่อเครื่องเป็น OCP format
+export function mapMachineToOCP(machineName) {
+  console.log('🔄 Mapping machine to OCP format:', machineName);
+  
+  // ดึงข้อมูลจาก config file
+  const configPath = path.join(process.cwd(), '..', 'db_instances.config.json');
+  const dbInstances = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+  
+  // หาเครื่องที่ตรงกับชื่อ
+  const machineConfig = dbInstances.find(instance => instance.name === machineName);
+  
+  if (machineConfig && machineConfig.m) {
+    // แปลง C1-C6 เป็น H1-H6 สำหรับ production_plan
+    let mappedCode = machineConfig.m;
+    if (machineConfig.m.startsWith('C') && machineConfig.m.length === 2) {
+      const number = machineConfig.m.substring(1);
+      mappedCode = `H${number}`;
+      console.log(`  → Converting ${machineConfig.m} → ${mappedCode}`);
+    }
+    
+    const ocpFormat = `OCP ${mappedCode}`;
+    console.log('  → Found in config, OCP format:', ocpFormat);
+    return ocpFormat;
+  }
+  
+  // Fallback mapping สำหรับเครื่องที่ไม่มีใน config
   const mapping = {
     // ท่อดำ
     'ท่อดำ #1': 'OCP I1',
@@ -51,25 +150,26 @@ function mapMachineToStation(machineName) {
     'ตัวซี #6': 'OCP H6',
     
     // ตัดแผ่น
-    'ตัดแผ่น 1': 'OCP PL1',
-    'ตัดแผ่น 2': 'OCP PL2',
-    'ตัดแผ่น 4': 'OCP PL4',
+    'ตัดแผ่น 1': 'OCP plates1',
+    'ตัดแผ่น 2': 'OCP plates2',
+    'ตัดแผ่น 4': 'OCP plates4',
     
     // สลิท
-    'สลิท#1': 'OCP SL1',
-    'สลิท#2': 'OCP SL2',
-    'สลิท#3': 'OCP SL3',
+    'สลิท#1': 'OCP S1',
+    'สลิท#2': 'OCP S2',
+    'สลิท#3': 'OCP S3',
     
     // OPS
-    'OPS 3': 'OPS3',
-    'OPS 4': 'OPS4',
+    'OPS 3': 'OPS 3',
+    'OPS 4': 'OPS 4',
     
     // SPS
-    'SPS 2(CH6)': 'SPS2CH6',
-    'SPS 2(CH4)': 'SPS2CH4'
+    'SPS 2(CH6)': 'SPS 2(CH6)',
+    'SPS 2(CH4)': 'SPS 2(CH4)'
   };
+  
   const mappedStation = mapping[machineName] || machineName;
-  console.log('  → Mapped to:', mappedStation);
+  console.log('  → Mapped to OCP format:', mappedStation);
   
   return mappedStation;
 }
@@ -90,7 +190,7 @@ export async function checkDbOnline(dbConfig) {
     options: {
       encrypt: false,
       trustServerCertificate: true,
-      connectTimeout: 2000 // เพิ่ม timeout
+      connectTimeout: 5000 // เพิ่ม timeout เป็น 5 วินาที
     },
     pool: { max: 1, min: 0, idleTimeoutMillis: 5000 }
   };
@@ -293,6 +393,9 @@ export async function queryStationData(dbConfig, fromDate, toDate) {
 }
 
 export async function queryPlanningData(dbConfig, station, fromDate, toDate) {
+  console.log('🚨🚨🚨 DEBUG: queryPlanningData called with station:', station);
+  console.log('🚨🚨🚨 DEBUG: This is the NEW version of queryPlanningData');
+  
   // ใช้ CEO_REPORT database สำหรับ production_plan
   const ceoReportConfig = {
     user: "sa",
@@ -307,22 +410,33 @@ export async function queryPlanningData(dbConfig, station, fromDate, toDate) {
     pool: { max: 2, min: 0, idleTimeoutMillis: 5000 }
   };
   
+  // ใช้ mapMachineToStation เพื่อแปลง station name
+  const mappedStation = mapMachineToStation(station);
+  console.log(' Mapping station:', station, '→', mappedStation);
+  
   const sqlQuery = `
     SELECT postingdate, material_code, size
     FROM production_plan
     WHERE postingdate BETWEEN @fromDate AND @toDate
+    AND station = @station
   `;
+  
+  console.log('🔍 DEBUG: SQL Query:', sqlQuery);
+  console.log('🔍 DEBUG: Parameters:', { fromDate, toDate, station: mappedStation });
   
   try {
     const pool = await sql.connect(ceoReportConfig);
     const result = await pool.request()
       .input('fromDate', sql.VarChar, fromDate)
       .input('toDate', sql.VarChar, toDate)
+      .input('station', sql.VarChar, mappedStation)
       .query(sqlQuery);
     
     await pool.close();
+    console.log('🔍 DEBUG: Query result count:', result.recordset.length);
     return result.recordset;
   } catch (err) {
+    console.error('�� DEBUG: Query error:', err.message);
     throw err;
   }
 }
