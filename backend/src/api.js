@@ -2,7 +2,7 @@ import express from 'express';
 import sql from 'mssql';
 import path from 'path';
 import fs from 'fs';
-import { getAllDbConfigs, getDbConfigByName, checkDbOnline, queryA2Rpt, queryA2RptSummary, queryA2RptSum, queryA2RptSummarySizeSum, queryStationData, queryPlanningData, updateProductionPlan, mapMachineToStation, mapMachineToOCP } from './dbUtil.js';
+import { getAllDbConfigs, getDbConfigByName, checkDbOnline, queryA2Rpt, queryA2RptSummary, queryA2RptSum, queryA2RptSummarySizeSum, queryStationData, queryPlanningData, updateProductionPlan, mapMachineToStation, mapMachineToProductionPlan } from './dbUtil.js';
 import xlsx from 'xlsx';
 import axios from 'axios';
 
@@ -163,13 +163,22 @@ router.get('/instances/production-plan', async (req, res) => {
       options: {
         encrypt: false,
         trustServerCertificate: true,
-        connectTimeout: 5000,
-        requestTimeout: 10000
+        connectTimeout: 10000,
+        requestTimeout: 15000
       },
-      pool: { max: 1, min: 0, idleTimeoutMillis: 3000 }
+      pool: { 
+        max: 10,         // เพิ่มจาก 5 เป็น 10
+        min: 0, 
+        idleTimeoutMillis: 10000,     // เพิ่มจาก 5000
+        acquireTimeoutMillis: 15000,  // เพิ่มจาก 10000
+        createTimeoutMillis: 15000,   // เพิ่มจาก 10000
+        destroyTimeoutMillis: 10000,  // เพิ่มจาก 5000
+        reapIntervalMillis: 2000,     // เพิ่มจาก 1000
+        createRetryIntervalMillis: 500 // เพิ่มจาก 200
+      }
     };
     
-    const mappedStation = mapMachineToOCP(name);
+    const mappedStation = mapMachineToProductionPlan(name);
     const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
     console.log('🔍 === /api/instances/production-plan ===');
     console.log('🔍 Request query:', req.query);
@@ -177,7 +186,7 @@ router.get('/instances/production-plan', async (req, res) => {
     
     const sqlQuery = `
       SELECT size 
-      FROM dbo.production_plan 
+      FROM [CEO_REPORT].[dbo].[production_plan]
       WHERE station = @station 
       AND postingdate = @today
     `;
@@ -817,7 +826,7 @@ router.get('/test/production-plan', async (req, res) => {
     
     const sqlQuery = `
       SELECT size 
-      FROM dbo.production_plan 
+      FROM [CEO_REPORT].[dbo].[production_plan]
       WHERE station = @station 
       AND postingdate = @today
     `;
@@ -1074,7 +1083,7 @@ router.get('/test/machine-status', async (req, res) => {
         };
         
         const mappedStation = mapMachineToStation(machine.name);
-        const mappedOCP = mapMachineToOCP(machine.name);
+        const mappedOCP = mapMachineToProductionPlan(machine.name);
         
         const fgQuery = `
           SELECT TOP 1 [rmd_size]
@@ -1112,7 +1121,7 @@ router.get('/test/machine-status', async (req, res) => {
         
         const ppQuery = `
           SELECT size 
-          FROM dbo.production_plan 
+          FROM [CEO_REPORT].[dbo].[production_plan]
           WHERE station = @station 
           AND postingdate = @today
         `;
@@ -1459,7 +1468,7 @@ router.get('/test/c5-planning', async (req, res) => {
     };
     
     const machineName = 'ตัวซี #5';
-    const mappedStation = mapMachineToOCP(machineName);
+    const mappedStation = mapMachineToProductionPlan(machineName);
     const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
     
     console.log('🔍 Machine name:', machineName);
@@ -1468,7 +1477,7 @@ router.get('/test/c5-planning', async (req, res) => {
     
     const sqlQuery = `
       SELECT size 
-      FROM dbo.production_plan 
+      FROM [CEO_REPORT].[dbo].[production_plan]
       WHERE station = @station 
       AND postingdate = @today
     `;
@@ -1934,7 +1943,7 @@ router.get('/instances/card-data', async (req, res) => {
         const lastProductionDate = finishGoodsResult.recordset.length > 0 ? finishGoodsResult.recordset[0].rmd_date : null;
         
         // ดึงข้อมูล production plan
-        const mappedOCP = mapMachineToOCP(machineParam);
+        const mappedOCP = mapMachineToProductionPlan(machineParam);
         const ceoReportConfig = {
           user: "sa",
           password: "",
@@ -1953,7 +1962,7 @@ router.get('/instances/card-data', async (req, res) => {
         const today = new Date().toISOString().split('T')[0];
         const productionPlanQuery = `
           SELECT size 
-          FROM dbo.production_plan 
+          FROM [CEO_REPORT].[dbo].[production_plan] 
           WHERE station = @station 
           AND postingdate = @today
         `;
@@ -2027,10 +2036,19 @@ router.get('/instances/card-data/:name', async (req, res) => {
       options: {
         encrypt: false,
         trustServerCertificate: true,
-        connectTimeout: 5000,
-        requestTimeout: 10000
+        connectTimeout: 10000,
+        requestTimeout: 15000
       },
-      pool: { max: 1, min: 0, idleTimeoutMillis: 3000 }
+      pool: { 
+        max: 5, 
+        min: 0, 
+        idleTimeoutMillis: 5000,
+        acquireTimeoutMillis: 10000,
+        createTimeoutMillis: 10000,
+        destroyTimeoutMillis: 5000,
+        reapIntervalMillis: 1000,
+        createRetryIntervalMillis: 200
+      }
     };
     
     // ดึงข้อมูล finish goods พร้อมวันที่ผลิตล่าสุด (เฉพาะ A1, A2)
@@ -2043,61 +2061,116 @@ router.get('/instances/card-data/:name', async (req, res) => {
       ORDER BY rmd_Date DESC, rmd_qty2 DESC
     `;
     
-    const finishGoodsPool = await sql.connect(ppConfig);
-    const finishGoodsResult = await finishGoodsPool.request()
-      .input('station', sql.VarChar, mappedStation)
-      .query(finishGoodsQuery);
-    await finishGoodsPool.close();
-    
-    const finishGoods = finishGoodsResult.recordset.length > 0 ? finishGoodsResult.recordset[0].rmd_size : null;
-    const lastProductionDate = finishGoodsResult.recordset.length > 0 ? finishGoodsResult.recordset[0].rmd_date : null;
-    
-    // ดึงข้อมูล production plan
-    const mappedOCP = mapMachineToOCP(machineParam);
-    const ceoReportConfig = {
-      user: "sa",
-      password: "",
-      server: "192.168.100.222",
-      database: "ceo_report",
-      port: 1433,
-      options: {
-        encrypt: false,
-        trustServerCertificate: true,
-        connectTimeout: 5000,
-        requestTimeout: 10000
-      },
-      pool: { max: 1, min: 0, idleTimeoutMillis: 3000 }
-    };
-    
-    const today = new Date().toISOString().split('T')[0];
-    const productionPlanQuery = `
-      SELECT size 
-      FROM dbo.production_plan 
-      WHERE station = @station 
-      AND postingdate = @today
-    `;
-    
-    const productionPlanPool = await sql.connect(ceoReportConfig);
-    const productionPlanResult = await productionPlanPool.request()
-      .input('station', sql.VarChar, mappedOCP)
-      .input('today', sql.VarChar, today)
-      .query(productionPlanQuery);
-    await productionPlanPool.close();
-    
-    const productionPlan = productionPlanResult.recordset.length > 0 ? productionPlanResult.recordset[0].size : null;
-    
-    const cardData = {
-      finishGoods: finishGoods || 'ไม่มีข้อมูล',
-      lastProductionDate: lastProductionDate ? new Date(lastProductionDate).toLocaleDateString('th-TH') : 'ไม่มีข้อมูล',
-      productionPlan: productionPlan || 'ไม่มีข้อมูล'
-    };
-    
-    console.log(`✅ ${name} card data:`, cardData);
-    
-    res.json({
-      success: true,
-      data: cardData
-    });
+    let finishGoodsPool = null;
+    try {
+      finishGoodsPool = await sql.connect(ppConfig);
+      const finishGoodsResult = await finishGoodsPool.request()
+        .input('station', sql.VarChar, mappedStation)
+        .query(finishGoodsQuery);
+      
+      const finishGoods = finishGoodsResult.recordset.length > 0 ? finishGoodsResult.recordset[0].rmd_size : null;
+      const lastProductionDate = finishGoodsResult.recordset.length > 0 ? finishGoodsResult.recordset[0].rmd_date : null;
+      
+      // ดึงข้อมูล production plan
+      const mappedOCP = mapMachineToProductionPlan(machineParam);
+      const ceoReportConfig = {
+        user: "sa",
+        password: "",
+        server: "192.168.100.222",
+        database: "ceo_report",
+        port: 1433,
+        options: {
+          encrypt: false,
+          trustServerCertificate: true,
+          connectTimeout: 10000,
+          requestTimeout: 15000
+        },
+        pool: { 
+          max: 5, 
+          min: 0, 
+          idleTimeoutMillis: 5000,
+          acquireTimeoutMillis: 10000,
+          createTimeoutMillis: 10000,
+          destroyTimeoutMillis: 5000,
+          reapIntervalMillis: 1000,
+          createRetryIntervalMillis: 200
+        }
+      };
+      
+      const today = new Date().toISOString().split('T')[0];
+      const productionPlanQuery = `
+        SELECT size 
+        FROM [CEO_REPORT].[dbo].[production_plan]
+        WHERE station = @station 
+        AND postingdate = @today
+      `;
+      
+      let productionPlanPool = null;
+      try {
+        productionPlanPool = await sql.connect(ceoReportConfig);
+        const productionPlanResult = await productionPlanPool.request()
+          .input('station', sql.VarChar, mappedOCP)
+          .input('today', sql.VarChar, today)
+          .query(productionPlanQuery);
+        
+        const productionPlan = productionPlanResult.recordset.length > 0 ? productionPlanResult.recordset[0].size : null;
+        
+        const cardData = {
+          finishGoods: finishGoods || 'ไม่มีข้อมูล',
+          lastProductionDate: lastProductionDate ? new Date(lastProductionDate).toLocaleDateString('th-TH') : 'ไม่มีข้อมูล',
+          productionPlan: productionPlan || 'ไม่มีข้อมูล'
+        };
+        
+        console.log(`✅ ${name} card data:`, cardData);
+        
+        res.json({
+          success: true,
+          data: cardData
+        });
+        
+      } catch (planError) {
+        console.error(`❌ Error fetching production plan for ${name}:`, planError.message);
+        const cardData = {
+          finishGoods: finishGoods || 'ไม่มีข้อมูล',
+          lastProductionDate: lastProductionDate ? new Date(lastProductionDate).toLocaleDateString('th-TH') : 'ไม่มีข้อมูล',
+          productionPlan: 'ไม่สามารถดึงข้อมูลได้'
+        };
+        
+        res.json({
+          success: true,
+          data: cardData
+        });
+      } finally {
+        if (productionPlanPool) {
+          try {
+            await productionPlanPool.close();
+          } catch (closeError) {
+            console.error(`❌ Error closing production plan pool for ${name}:`, closeError.message);
+          }
+        }
+      }
+      
+    } catch (goodsError) {
+      console.error(`❌ Error fetching finish goods for ${name}:`, goodsError.message);
+      const cardData = {
+        finishGoods: 'ไม่สามารถดึงข้อมูลได้',
+        lastProductionDate: 'ไม่สามารถดึงข้อมูลได้',
+        productionPlan: 'ไม่สามารถดึงข้อมูลได้'
+      };
+      
+      res.json({
+        success: true,
+        data: cardData
+      });
+    } finally {
+      if (finishGoodsPool) {
+        try {
+          await finishGoodsPool.close();
+        } catch (closeError) {
+          console.error(`❌ Error closing finish goods pool for ${name}:`, closeError.message);
+        }
+      }
+    }
     
   } catch (err) {
     console.error(`❌ Error in card data API for ${name}:`, err.message);

@@ -104,9 +104,9 @@ export function mapMachineToStation(machineName) {
   return mappedStation;
 }
 
-// เพิ่มฟังก์ชันใหม่สำหรับแปลงชื่อเครื่องเป็น OCP format
-export function mapMachineToOCP(machineName) {
-  console.log('🔄 Mapping machine to OCP format:', machineName);
+// เพิ่มฟังก์ชันใหม่สำหรับแปลงชื่อเครื่องเป็น Production Plan format
+export function mapMachineToProductionPlan(machineName) {
+  console.log('🔄 Mapping machine to Production Plan format:', machineName);
   
   // ดึงข้อมูลจาก config file
   const configPath = path.join(process.cwd(), '..', 'db_instances.config.json');
@@ -125,7 +125,7 @@ export function mapMachineToOCP(machineName) {
     }
     
     const ocpFormat = `OCP ${mappedCode}`;
-    console.log('  → Found in config, OCP format:', ocpFormat);
+    console.log('  → Found in config, Production Plan format:', ocpFormat);
     return ocpFormat;
   }
   
@@ -169,7 +169,7 @@ export function mapMachineToOCP(machineName) {
   };
   
   const mappedStation = mapping[machineName] || machineName;
-  console.log('  → Mapped to OCP format:', mappedStation);
+  console.log('  → Mapped to Production Plan format:', mappedStation);
   
   return mappedStation;
 }

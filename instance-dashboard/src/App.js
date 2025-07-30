@@ -113,6 +113,16 @@ function App() {
       const res = await axios.get(API_URL);
       setInstances(res.data);
       setLastUpdate(new Date());
+      
+      // ดึงข้อมูลผลิตล่าสุดสำหรับทุกเครื่องอัตโนมัติ (เพิ่ม delay)
+      console.log('🔍 Fetching production data for all machines...');
+      for (let i = 0; i < res.data.length; i++) {
+        const instance = res.data[i];
+        // เพิ่ม delay 1000ms ระหว่างการเรียก API
+        setTimeout(() => {
+          fetchLatestProductionData(instance);
+        }, i * 1000);
+      }
     } catch {
       setInstances([]);
     } finally {
@@ -120,6 +130,12 @@ function App() {
       setRefreshing(false);
     }
   };
+
+  // โหลดครั้งแรก
+  useEffect(() => {
+    fetchInstances();
+    // eslint-disable-next-line
+  }, []);
 
   // ฟังก์ชันเช็คสถานะเครื่อง
   const checkMachineStatus = async (instance) => {
@@ -785,10 +801,10 @@ function App() {
                                   <GetAppIcon sx={{ fontSize: 40, color: 'rgba(0,0,0,0.3)' }} />
                                 </Box>
                                 <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                                  ยังไม่มีข้อมูลการผลิต
+                                  กำลังโหลดข้อมูลการผลิต...
                                 </Typography>
                                 <Typography variant="caption" color="text.secondary" sx={{ opacity: 0.7 }}>
-                                  กดปุ่มด้านล่างเพื่อดึงข้อมูล
+                                  กรุณารอสักครู่
                                 </Typography>
                               </Box>
                             )}
@@ -829,37 +845,6 @@ function App() {
                                   <CircularProgress size={24} color="inherit" />
                                 ) : (
                                   <WifiIcon fontSize="large" />
-                                )}
-                              </IconButton>
-                            </Tooltip>
-                            
-                            <Tooltip title="ดึงข้อมูลผลิตล่าสุด">
-                              <IconButton
-                                size="large"
-                                color="secondary"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  fetchLatestProductionData(instance);
-                                }}
-                                disabled={loadingProduction[instance.name]}
-                                sx={{ 
-                                  bgcolor: 'secondary.main', 
-                                  color: 'white',
-                                  '&:hover': { 
-                                    bgcolor: 'secondary.dark',
-                                    transform: 'scale(1.05)'
-                                  },
-                                  '&:disabled': { bgcolor: 'grey.300' },
-                                  flex: 1,
-                                  height: 48,
-                                  boxShadow: '0 4px 12px rgba(156, 39, 176, 0.3)',
-                                  transition: 'all 0.2s ease'
-                                }}
-                              >
-                                {loadingProduction[instance.name] ? (
-                                  <CircularProgress size={24} color="inherit" />
-                                ) : (
-                                  <GetAppIcon fontSize="large" />
                                 )}
                               </IconButton>
                             </Tooltip>
