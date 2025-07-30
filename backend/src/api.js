@@ -42,6 +42,109 @@ router.get('/instances/status', async (req, res) => {
   res.json({ name, online });
 });
 
+// GET /api/instances/finish-goods?name=... - ดึงข้อมูล finish goods ล่าสุด
+router.get('/instances/finish-goods', async (req, res) => {
+  const { name } = req.query;
+  if (!name) return res.status(400).json({ error: 'ต้องระบุ name' });
+  
+  const dbConfig = getDbConfigByName(name);
+  if (!dbConfig) return res.status(404).json({ error: 'ไม่พบเครื่องที่ระบุ' });
+  
+  try {
+    // ใช้ PP database สำหรับ finish goods
+    const ppConfig = {
+      user: "sa",
+      password: "",
+      server: "192.168.100.222",
+      database: "PP",
+      port: 1433,
+      options: {
+        encrypt: false,
+        trustServerCertificate: true
+      },
+      pool: { max: 2, min: 0, idleTimeoutMillis: 5000 }
+    };
+    
+    // แปลงชื่อเครื่องเป็นเลขเครื่อง (I1, I2, I3, ...)
+    const mappedStation = mapMachineToStation(name);
+    const stationNumber = mappedStation.replace('OCP ', ''); // เอาเฉพาะ I1, I2, I3, ...
+    
+    const sqlQuery = `
+      SELECT TOP 1 rmd_size as size
+      FROM tbl_production_scale
+      WHERE rmd_plan = 'OCP'
+      AND rmd_station = @station
+      AND rmd_date = (
+        SELECT MAX(rmd_date) 
+        FROM tbl_production_scale 
+        WHERE rmd_plan = 'OCP' AND rmd_station = @station
+      )
+      ORDER BY rmd_qty2 DESC
+    `;
+    
+    console.log('Finish Goods Query:', { name, mappedStation, stationNumber });
+    
+    const pool = await sql.connect(ppConfig);
+    const result = await pool.request()
+      .input('station', sql.VarChar, stationNumber)
+      .query(sqlQuery);
+    await pool.close();
+    
+    res.json(result.recordset[0] || { size: 'ไม่มีข้อมูล' });
+  } catch (err) {
+    console.error('Error fetching finish goods:', err.message);
+    res.status(500).json({ error: 'เกิดข้อผิดพลาดในการดึงข้อมูล', detail: err.message });
+  }
+});
+
+// GET /api/instances/production-plan?name=... - ดึงข้อมูลแผนผลิต
+router.get('/instances/production-plan', async (req, res) => {
+  const { name } = req.query;
+  if (!name) return res.status(400).json({ error: 'ต้องระบุ name' });
+  
+  const dbConfig = getDbConfigByName(name);
+  if (!dbConfig) return res.status(404).json({ error: 'ไม่พบเครื่องที่ระบุ' });
+  
+  try {
+    // ใช้ CEO_REPORT database
+    const ceoReportConfig = {
+      user: "sa",
+      password: "",
+      server: "192.168.100.222",
+      database: "ceo_report",
+      port: 1433,
+      options: {
+        encrypt: false,
+        trustServerCertificate: true
+      },
+      pool: { max: 2, min: 0, idleTimeoutMillis: 5000 }
+    };
+    
+    const mappedStation = mapMachineToStation(name);
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    
+    const sqlQuery = `
+      SELECT tbl_mat_desc.maktx 
+      FROM production_plan 
+      INNER JOIN tbl_mat_desc ON production_plan.material_code = tbl_mat_desc.matnr
+      WHERE production_plan.station = @station 
+      AND FORMAT(production_plan.postingdate, 'yyyy-mm-dd') = @today
+    `;
+    
+    const pool = await sql.connect(ceoReportConfig);
+    const result = await pool.request()
+      .input('station', sql.VarChar, mappedStation)
+      .input('today', sql.VarChar, today)
+      .query(sqlQuery);
+    await pool.close();
+    
+    res.json(result.recordset[0] || { maktx: 'ไม่มีข้อมูล' });
+  } catch (err) {
+    console.error('Error fetching production plan:', err.message);
+    res.status(500).json({ error: 'เกิดข้อผิดพลาดในการดึงข้อมูล', detail: err.message });
+  }
+});
+
 // GET /api/a2rpt?name=...&year=2024&month=6&page=1&pageSize=20
 router.get('/a2rpt', async (req, res) => {
   const { name, year, month, page = 1, pageSize = 20 } = req.query;
