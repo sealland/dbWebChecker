@@ -217,6 +217,23 @@ function App() {
     return date.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   };
 
+  // ฟังก์ชันสำหรับ format วันที่เป็น YYYY-MM-DD
+  const formatDateForInput = (date) => {
+    if (!date) return '';
+    const d = new Date(date);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  // ฟังก์ชันสำหรับเปิด compare drawer พร้อม set วันที่ default
+  const openCompareDrawer = () => {
+    const today = formatDateForInput(new Date());
+    setCompareDates({ from: today, to: today });
+    setCompareOpen(true);
+  };
+
   // Drawer เปรียบเทียบข้อมูล
   const CompareDrawer = (
     <Drawer
@@ -295,7 +312,7 @@ function App() {
                   ) : (
                     stationData.map((row, idx) => (
                       <TableRow key={idx}>
-                        <TableCell>{row.doc_date}</TableCell>
+                        <TableCell>{formatDateForInput(row.doc_date)}</TableCell>
                         <TableCell>{row.material}</TableCell>
                         <TableCell>{row.rmd_size}</TableCell>
                         <TableCell>{row['chk-a']}</TableCell>
@@ -340,7 +357,7 @@ function App() {
                   ) : (
                     planData.map((row, idx) => (
                       <TableRow key={idx}>
-                        <TableCell>{row.postingdate}</TableCell>
+                        <TableCell>{formatDateForInput(row.postingdate)}</TableCell>
                         <TableCell>{row.material_code}</TableCell>
                         <TableCell>{row.size}</TableCell>
                       </TableRow>
@@ -474,7 +491,7 @@ function App() {
                 Process
               </Typography>
               <List>
-                <ListItem button onClick={() => { setCompareOpen(true); fetchCompareData(); }} sx={{ borderRadius: 2 }}>
+                <ListItem button onClick={openCompareDrawer} sx={{ borderRadius: 2 }}>
                   <ListItemIcon>
                     <SettingsIcon />
                   </ListItemIcon>
