@@ -405,14 +405,30 @@ export async function queryPlanningData(dbConfig, station, fromDate, toDate) {
     port: 1433,
     options: {
       encrypt: false,
-      trustServerCertificate: true
+      trustServerCertificate: true,
+      connectTimeout: 30000,        // เพิ่มเป็น 30 วินาที
+      requestTimeout: 30000,        // เพิ่มเป็น 30 วินาที
+      cancelTimeout: 5000,
+      packetSize: 4096,
+      useUTC: true,
+      isolationLevel: sql.ISOLATION_LEVEL.READ_COMMITTED
     },
-    pool: { max: 2, min: 0, idleTimeoutMillis: 5000 }
+    pool: { 
+      max: 10,                     // เพิ่มจาก 5 เป็น 10
+      min: 0, 
+      idleTimeoutMillis: 30000,    // เพิ่มเป็น 30 วินาที
+      acquireTimeoutMillis: 30000, // เพิ่มเป็น 30 วินาที
+      createTimeoutMillis: 30000,  // เพิ่มเป็น 30 วินาที
+      destroyTimeoutMillis: 5000,
+      reapIntervalMillis: 1000,
+      createRetryIntervalMillis: 200,
+      propagateCreateError: false
+    }
   };
   
-  // ใช้ mapMachineToStation เพื่อแปลง station name
-  const mappedStation = mapMachineToStation(station);
-  console.log(' Mapping station:', station, '→', mappedStation);
+  // แก้ไข: ใช้ mapMachineToProductionPlan แทน mapMachineToStation
+  const mappedStation = mapMachineToProductionPlan(station);
+  console.log('🔍 Mapping station for Production Plan:', station, '→', mappedStation);
   
   const sqlQuery = `
     SELECT postingdate, material_code, size
@@ -424,20 +440,43 @@ export async function queryPlanningData(dbConfig, station, fromDate, toDate) {
   console.log('🔍 DEBUG: SQL Query:', sqlQuery);
   console.log('🔍 DEBUG: Parameters:', { fromDate, toDate, station: mappedStation });
   
+  let pool;
   try {
-    const pool = await sql.connect(ceoReportConfig);
+    // สร้าง connection pool ใหม่
+    pool = new sql.ConnectionPool(ceoReportConfig);
+    
+    // รอให้ pool พร้อมใช้งาน
+    await pool.connect();
+    console.log('🔍 DEBUG: Connection pool connected successfully');
+    
     const result = await pool.request()
       .input('fromDate', sql.VarChar, fromDate)
       .input('toDate', sql.VarChar, toDate)
       .input('station', sql.VarChar, mappedStation)
       .query(sqlQuery);
     
-    await pool.close();
     console.log('🔍 DEBUG: Query result count:', result.recordset.length);
     return result.recordset;
   } catch (err) {
-    console.error('�� DEBUG: Query error:', err.message);
+    console.error('❌ DEBUG: Query error:', err.message);
+    console.error('❌ DEBUG: Error details:', {
+      code: err.code,
+      state: err.state,
+      serverName: err.serverName,
+      lineNumber: err.lineNumber,
+      class: err.class,
+      number: err.number
+    });
     throw err;
+  } finally {
+    if (pool) {
+      try {
+        await pool.close();
+        console.log('🔍 DEBUG: Connection pool closed successfully');
+      } catch (closeErr) {
+        console.error('❌ DEBUG: Error closing pool:', closeErr.message);
+      }
+    }
   }
 }
 // ฟังก์ชันอัพเดตข้อมูล Production Plan
