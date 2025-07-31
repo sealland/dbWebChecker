@@ -323,11 +323,30 @@ function App() {
   // อัพเดตข้อมูล Production Plan
   const handleUpdateData = async () => {
     if (!compareDates.from || !compareDates.to || !selected) {
+      alert('กรุณาเลือกวันที่และเครื่องที่ต้องการอัพเดต');
+      return;
+    }
+    
+    // ตรวจสอบว่ามีข้อมูล Station หรือไม่
+    if (stationData.length === 0) {
+      alert('ไม่พบข้อมูลจาก Station ที่จะอัพเดต กรุณาโหลดข้อมูลก่อน');
+      return;
+    }
+    
+    // ยืนยันการอัพเดต
+    if (!window.confirm(`ต้องการอัพเดตข้อมูลจาก ${compareDates.from} ถึง ${compareDates.to} สำหรับเครื่อง ${selected.name} หรือไม่?\n\nจำนวนข้อมูลที่จะอัพเดต: ${stationData.length} รายการ`)) {
       return;
     }
     
     setUpdating(true);
     try {
+      console.log('🔄 Starting update process...', {
+        name: selected.name,
+        station: selected.name,
+        fromDate: compareDates.from,
+        toDate: compareDates.to
+      });
+      
       const response = await axios.post('http://localhost:4000/api/compare/update', {
         name: selected.name,
         station: selected.name,
@@ -337,12 +356,39 @@ function App() {
         user: 'system'
       });
       
+      console.log('✅ Update response:', response.data);
+      
       // รีเฟรชข้อมูลหลังจากอัพเดต
       await fetchCompareData();
-      alert('อัพเดตข้อมูลสำเร็จ');
+      
+      // แสดงผลลัพธ์ที่ละเอียดขึ้น
+      let successMessage = '✅ อัพเดตข้อมูลสำเร็จ';
+      if (response.data.updated !== undefined && response.data.inserted !== undefined) {
+        successMessage += `\n\n- อัพเดต: ${response.data.updated} รายการ`;
+        successMessage += `\n- เพิ่มใหม่: ${response.data.inserted} รายการ`;
+      }
+      alert(successMessage);
     } catch (error) {
-      console.error('Error updating data:', error);
-      alert('เกิดข้อผิดพลาดในการอัพเดตข้อมูล');
+      console.error('❌ Error updating data:', error);
+      
+      let errorMessage = 'เกิดข้อผิดพลาดในการอัพเดตข้อมูล';
+      if (error.response) {
+        // มี response จาก server
+        if (error.response.data && error.response.data.error) {
+          errorMessage = error.response.data.error;
+        } else if (error.response.status === 404) {
+          errorMessage = 'ไม่พบเครื่องที่ระบุ';
+        } else if (error.response.status === 400) {
+          errorMessage = 'ข้อมูลไม่ถูกต้อง';
+        } else if (error.response.status === 500) {
+          errorMessage = 'เกิดข้อผิดพลาดที่เซิร์ฟเวอร์';
+        }
+      } else if (error.request) {
+        // ไม่มี response (network error)
+        errorMessage = 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้';
+      }
+      
+      alert(`❌ ${errorMessage}\n\nรายละเอียด: ${error.message}`);
     } finally {
       setUpdating(false);
     }
@@ -416,7 +462,14 @@ function App() {
             disabled={updating || stationData.length === 0}
             sx={{ minWidth: 100 }}
           >
-            {updating ? <CircularProgress size={20} /> : 'อัพเดต'}
+            {updating ? (
+              <>
+                <CircularProgress size={20} sx={{ mr: 1 }} />
+                อัพเดต...
+              </>
+            ) : (
+              'อัพเดต'
+            )}
           </Button>
         </Box>
         <Box sx={{ display: 'flex', flex: 1, gap: 2, minHeight: 320 }}>
@@ -460,8 +513,18 @@ function App() {
           </Box>
           {/* ปุ่ม >> */}
           <Box sx={{ display: 'flex', alignItems: 'center', px: 1 }}>
-            <Button variant="outlined" sx={{ minWidth: 0, p: 1 }}>
-              <ChevronRightIcon fontSize="large" />
+            <Button 
+              variant="outlined" 
+              sx={{ minWidth: 0, p: 1 }}
+              onClick={handleUpdateData}
+              disabled={updating || stationData.length === 0}
+              title="อัพเดตข้อมูลจาก Station ไปยัง Production Plan"
+            >
+              {updating ? (
+                <CircularProgress size={24} />
+              ) : (
+                <ChevronRightIcon fontSize="large" />
+              )}
             </Button>
           </Box>
           {/* From Production Plan */}

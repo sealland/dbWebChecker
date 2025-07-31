@@ -392,33 +392,31 @@ export async function queryStationData(dbConfig, fromDate, toDate) {
   }
 }
 
-export async function queryPlanningData(dbConfig, station, fromDate, toDate) {
-  console.log('🚨🚨🚨 DEBUG: queryPlanningData called with station:', station);
-  console.log('🚨🚨🚨 DEBUG: This is the NEW version of queryPlanningData');
-  
-  // ใช้ CEO_REPORT database สำหรับ production_plan
+// Helper function สำหรับการเชื่อมต่อ CEO_REPORT database
+async function getCEOReportConnection() {
+  console.log('🔍 DEBUG: Creating CEO_REPORT connection...');
   const ceoReportConfig = {
     user: "sa",
     password: "",
     server: "192.168.100.222",
-    database: "ceo_report",
+    database: "CEO_REPORT",
     port: 1433,
     options: {
       encrypt: false,
       trustServerCertificate: true,
-      connectTimeout: 30000,        // เพิ่มเป็น 30 วินาที
-      requestTimeout: 30000,        // เพิ่มเป็น 30 วินาที
+      connectTimeout: 30000,
+      requestTimeout: 30000,
       cancelTimeout: 5000,
       packetSize: 4096,
       useUTC: true,
       isolationLevel: sql.ISOLATION_LEVEL.READ_COMMITTED
     },
     pool: { 
-      max: 10,                     // เพิ่มจาก 5 เป็น 10
+      max: 10,
       min: 0, 
-      idleTimeoutMillis: 30000,    // เพิ่มเป็น 30 วินาที
-      acquireTimeoutMillis: 30000, // เพิ่มเป็น 30 วินาที
-      createTimeoutMillis: 30000,  // เพิ่มเป็น 30 วินาที
+      idleTimeoutMillis: 30000,
+      acquireTimeoutMillis: 30000,
+      createTimeoutMillis: 30000,
       destroyTimeoutMillis: 5000,
       reapIntervalMillis: 1000,
       createRetryIntervalMillis: 200,
@@ -426,10 +424,46 @@ export async function queryPlanningData(dbConfig, station, fromDate, toDate) {
     }
   };
   
+  console.log('🔍 DEBUG: CEO_REPORT config:', {
+    server: ceoReportConfig.server,
+    database: ceoReportConfig.database,
+    user: ceoReportConfig.user,
+    connectTimeout: ceoReportConfig.options.connectTimeout,
+    requestTimeout: ceoReportConfig.options.requestTimeout
+  });
+  
+  try {
+    // ใช้ sql.connect() แทน new sql.ConnectionPool()
+    const pool = await sql.connect(ceoReportConfig);
+    console.log('✅ DEBUG: CEO_REPORT connection successful');
+    
+    // ตรวจสอบว่าเชื่อมต่อถูก server และ database หรือไม่
+    const serverCheck = await pool.request().query('SELECT @@SERVERNAME as server_name, DB_NAME() as database_name');
+    console.log('🔍 DEBUG: Actually connected to:', serverCheck.recordset[0]);
+    
+    // ยอมรับ server name ใดก็ได้ แต่ database ต้องเป็น CEO_REPORT
+    if (serverCheck.recordset[0].database_name !== 'CEO_REPORT') {
+      await pool.close();
+      throw new Error(`เชื่อมต่อผิด database: ${serverCheck.recordset[0].database_name} (ควรเป็น CEO_REPORT)`);
+    }
+    
+    console.log('✅ DEBUG: Connected to correct database:', serverCheck.recordset[0].database_name);
+    return pool;
+  } catch (err) {
+    console.error('❌ DEBUG: CEO_REPORT connection failed:', err.message);
+    throw err;
+  }
+}
+
+export async function queryPlanningData(dbConfig, station, fromDate, toDate) {
+  console.log('🚨🚨🚨 DEBUG: queryPlanningData called with station:', station);
+  console.log('🚨🚨🚨 DEBUG: This is the NEW version of queryPlanningData');
+  
   // แก้ไข: ใช้ mapMachineToProductionPlan แทน mapMachineToStation
   const mappedStation = mapMachineToProductionPlan(station);
   console.log('🔍 Mapping station for Production Plan:', station, '→', mappedStation);
   
+  // แก้ไข: ใช้ full path เหมือนกับ dashboard card
   const sqlQuery = `
     SELECT postingdate, material_code, size
     FROM production_plan
@@ -442,20 +476,26 @@ export async function queryPlanningData(dbConfig, station, fromDate, toDate) {
   
   let pool;
   try {
-    // สร้าง connection pool ใหม่
-    pool = new sql.ConnectionPool(ceoReportConfig);
-    
-    // รอให้ pool พร้อมใช้งาน
-    await pool.connect();
+    // ใช้ helper function สำหรับการเชื่อมต่อ
+    pool = await getCEOReportConnection();
     console.log('🔍 DEBUG: Connection pool connected successfully');
     
+    // เพิ่ม debug เพื่อตรวจสอบว่า query จริงหรือไม่
+    console.log('🔍 DEBUG: About to execute query...');
     const result = await pool.request()
       .input('fromDate', sql.VarChar, fromDate)
       .input('toDate', sql.VarChar, toDate)
       .input('station', sql.VarChar, mappedStation)
       .query(sqlQuery);
     
+    console.log('🔍 DEBUG: Query executed successfully');
     console.log('🔍 DEBUG: Query result count:', result.recordset.length);
+    
+    // เพิ่ม debug เพื่อดูข้อมูลที่ได้
+    if (result.recordset.length > 0) {
+      console.log('🔍 DEBUG: Sample data:', result.recordset[0]);
+    }
+    
     return result.recordset;
   } catch (err) {
     console.error('❌ DEBUG: Query error:', err.message);
@@ -467,7 +507,10 @@ export async function queryPlanningData(dbConfig, station, fromDate, toDate) {
       class: err.class,
       number: err.number
     });
-    throw err;
+    
+    // ถ้า error ให้ return array ว่าง
+    console.log('🔍 DEBUG: Returning empty array due to error');
+    return [];
   } finally {
     if (pool) {
       try {
@@ -479,44 +522,21 @@ export async function queryPlanningData(dbConfig, station, fromDate, toDate) {
     }
   }
 }
+
 // ฟังก์ชันอัพเดตข้อมูล Production Plan
 export async function updateProductionPlan(dbConfig, station, fromDate, toDate, shift = "Z", user = "system") {
-  // ใช้ CEO_REPORT database สำหรับ production_plan
-  const mappedStation = mapMachineToStation(station);
+  console.log('🔄 Starting updateProductionPlan:', { station, fromDate, toDate, shift, user });
   
-  const ceoReportConfig = {
-    user: "sa",
-    password: "",
-    server: "192.168.100.222",
-    database: "ceo_report",
-    port: 1433,
-    options: {
-      encrypt: false,
-      trustServerCertificate: true
-    },
-    pool: { max: 2, min: 0, idleTimeoutMillis: 5000 }
-  };
+  // ใช้ CEO_REPORT database สำหรับ production_plan
+  const mappedStation = mapMachineToProductionPlan(station);
+  console.log(' Mapped station for Production Plan:', station, '→', mappedStation);
+  
+  let ceoPool = null;
+  let sourcePool = null;
   
   try {
-    const pool = await sql.connect(ceoReportConfig);
-    
-    // Step 1: อัพเดตสถานะเป็น 'รอตรวจสอบ'
-    const updateQuery = `
-      UPDATE production_plan 
-      SET status = 'รอตรวจสอบ', shift = @shift 
-      WHERE station = @station 
-      AND postingdate BETWEEN @fromDate AND @toDate
-    `;
-    
-    await pool.request()
-      .input('shift', sql.VarChar, shift)
-      .input('station', sql.VarChar, station)
-      .input('fromDate', sql.VarChar, fromDate)
-      .input('toDate', sql.VarChar, toDate)
-      .query(updateQuery);
-    
-    // Step 2: เพิ่มข้อมูลใหม่จาก GET_CD3DATA
-    // ต้องเชื่อมต่อฐานข้อมูลต้นฉบับเพื่อดึงข้อมูลจาก GET_CD3DATA
+    // Step 1: เชื่อมต่อไปยัง source database เพื่อดึงข้อมูลจาก GET_CD3DATA
+    console.log('🔍 Connecting to source database...');
     const sourceConfig = {
       user: dbConfig.user,
       password: dbConfig.password,
@@ -525,28 +545,25 @@ export async function updateProductionPlan(dbConfig, station, fromDate, toDate, 
       port: 1433,
       options: {
         encrypt: false,
-        trustServerCertificate: true
+        trustServerCertificate: true,
+        connectTimeout: 10000,
+        requestTimeout: 30000
       },
       pool: { max: 2, min: 0, idleTimeoutMillis: 5000 }
     };
     
-    const sourcePool = await sql.connect(sourceConfig);
+    sourcePool = await sql.connect(sourceConfig);
+    console.log('✅ Connected to source database');
     
-    const insertQuery = `
-      INSERT INTO production_plan 
-      ([machine],[station],[material_code],[postingdate],[size],[ton],[change],[username],[shift],[Status],[complete])
+    console.log('🔄 Step 1: Fetching data from GET_CD3DATA...');
+    const selectQuery = `
       SELECT 
         machine,
-        @station,
         material,
         doc_date,
         rmd_size,
-        SUM(rmd_weight)/1000,
-        @changeTime,
-        @user,
-        rmd_period,
-        'ผลิตแน่',
-        -1
+        SUM(rmd_weight)/1000 as ton,
+        rmd_period
       FROM GET_CD3DATA 
       WHERE doc_date BETWEEN @fromDate AND @toDate
       AND rmd_size IS NOT NULL 
@@ -555,18 +572,144 @@ export async function updateProductionPlan(dbConfig, station, fromDate, toDate, 
       GROUP BY machine, doc_date, rmd_size, material, rmd_period
     `;
     
-    await sourcePool.request()
-      .input('station', sql.VarChar, station)
-      .input('changeTime', sql.DateTime, new Date())
-      .input('user', sql.VarChar, user)
+    const dataResult = await sourcePool.request()
       .input('fromDate', sql.VarChar, fromDate)
       .input('toDate', sql.VarChar, toDate)
-      .query(insertQuery);
+      .query(selectQuery);
     
-    await sourcePool.close();
-    await pool.close();
-    return { success: true, message: 'อัพเดตข้อมูลสำเร็จ' };
+    console.log('✅ Fetched records from source:', dataResult.recordset.length);
+    
+    // Step 2: เชื่อมต่อไปยัง CEO_REPORT database
+    console.log('🔍 Connecting to CEO_REPORT database...');
+    ceoPool = await getCEOReportConnection();
+    console.log('✅ Connected to CEO_REPORT database');
+    
+    // เพิ่ม debug เพื่อตรวจสอบ server ที่เชื่อมต่อ
+    console.log('🔍 DEBUG: Checking current database and server...');
+    try {
+      const serverCheck = await ceoPool.request().query('SELECT @@SERVERNAME as server_name, DB_NAME() as database_name');
+      console.log('🔍 DEBUG: Connected to:', serverCheck.recordset[0]);
+    } catch (err) {
+      console.log('❌ DEBUG: Error checking server:', err.message);
+    }
+    
+    // Step 3: ข้ามการตรวจสอบตาราง (เหมือน queryPlanningData)
+    console.log('🔄 Step 3: Skipping table check (like queryPlanningData)...');
+    
+    // Step 4: ตรวจสอบว่ามีข้อมูลที่จะลบหรือไม่
+    console.log('🔄 Step 2: Checking existing records in production_plan...');
+    const checkExistingQuery = `
+      SELECT COUNT(*) as existing_count
+      FROM production_plan
+      WHERE station = @station 
+      AND postingdate BETWEEN @fromDate AND @toDate
+    `;
+    
+    const existingCheck = await ceoPool.request()
+      .input('station', sql.VarChar, mappedStation)
+      .input('fromDate', sql.VarChar, fromDate)
+      .input('toDate', sql.VarChar, toDate)
+      .query(checkExistingQuery);
+    
+    const existingCount = existingCheck.recordset[0].existing_count;
+    console.log('🔍 Existing records to delete:', existingCount);
+    
+    let deletedCount = 0;
+    
+    // Step 5: ลบข้อมูลเดิมใน CEO_REPORT (ถ้ามี)
+    if (existingCount > 0) {
+      console.log('🔄 Step 3: Deleting existing records in production_plan...');
+      const deleteQuery = `
+        DELETE FROM production_plan
+        WHERE station = @station 
+        AND postingdate BETWEEN @fromDate AND @toDate
+      `;
+      
+      console.log('🔍 Delete query:', deleteQuery);
+      console.log('🔍 Delete parameters:', { station: mappedStation, fromDate, toDate });
+      
+      const deleteResult = await ceoPool.request()
+        .input('station', sql.VarChar, mappedStation)
+        .input('fromDate', sql.VarChar, fromDate)
+        .input('toDate', sql.VarChar, toDate)
+        .query(deleteQuery);
+      
+      deletedCount = deleteResult.rowsAffected[0];
+      console.log('✅ Deleted existing records:', deletedCount);
+    } else {
+      console.log('⏭️ No existing records to delete, skipping delete step');
+    }
+    
+    // Step 6: Insert ข้อมูลใหม่เข้า CEO_REPORT.production_plan
+    console.log('🔄 Step 4: Inserting new records to production_plan...');
+    let insertedCount = 0;
+    
+    for (const row of dataResult.recordset) {
+      const insertQuery = `
+        INSERT INTO production_plan 
+        ([machine],[station],[material_code],[postingdate],[size],[ton],[change],[username],[shift],[Status],[complete])
+        VALUES (@machine, @station, @material_code, @postingdate, @size, @ton, @change, @username, @shift, @Status, @complete)
+      `;
+      
+      await ceoPool.request()
+        .input('machine', sql.VarChar, row.machine)
+        .input('station', sql.VarChar, mappedStation)
+        .input('material_code', sql.VarChar, row.material)
+        .input('postingdate', sql.VarChar, row.doc_date)
+        .input('size', sql.VarChar, row.rmd_size)
+        .input('ton', sql.Float, row.ton)
+        .input('change', sql.DateTime, new Date())
+        .input('username', sql.VarChar, user)
+        .input('shift', sql.VarChar, row.rmd_period)
+        .input('Status', sql.VarChar, 'ผลิตแน่')
+        .input('complete', sql.Int, -1)
+        .query(insertQuery);
+      
+      insertedCount++;
+    }
+    
+    console.log('✅ Inserted records:', insertedCount);
+    
+    return { 
+      success: true, 
+      message: 'อัพเดตข้อมูลสำเร็จ',
+      deleted: deletedCount,
+      inserted: insertedCount
+    };
   } catch (err) {
-    throw err;
+    console.error('❌ Error in updateProductionPlan:', err);
+    
+    // ปิดการเชื่อมต่อถ้ายังเปิดอยู่
+    if (sourcePool) {
+      try {
+        await sourcePool.close();
+        console.log(' Closed source pool');
+      } catch (closeErr) {
+        console.error('❌ Error closing source pool:', closeErr.message);
+      }
+    }
+    
+    if (ceoPool) {
+      try {
+        await ceoPool.close();
+        console.log('🔍 Closed CEO_REPORT pool');
+      } catch (closeErr) {
+        console.error('❌ Error closing CEO_REPORT pool:', closeErr.message);
+      }
+    }
+    
+    // ส่งข้อผิดพลาดที่ชัดเจนขึ้น
+    let errorMessage = 'เกิดข้อผิดพลาดในการอัพเดตข้อมูล';
+    if (err.message.includes('timeout')) {
+      errorMessage = 'การเชื่อมต่อฐานข้อมูลหมดเวลา';
+    } else if (err.message.includes('connection')) {
+      errorMessage = 'ไม่สามารถเชื่อมต่อฐานข้อมูลได้';
+    } else if (err.message.includes('login')) {
+      errorMessage = 'ข้อมูลการเข้าสู่ระบบฐานข้อมูลไม่ถูกต้อง';
+    } else if (err.message.includes('Invalid object name')) {
+      errorMessage = 'ไม่พบตารางหรือ view ที่ระบุ';
+    }
+    
+    throw new Error(`${errorMessage}: ${err.message}`);
   }
-} 
+}
