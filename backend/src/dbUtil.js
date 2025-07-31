@@ -16,13 +16,115 @@ export function getAllDbConfigs() {
   return dbInstances;
 }
 
-// เพิ่มฟังก์ชัน pingHost (Windows)
+// แก้ไขฟังก์ชัน pingHost
 function pingHost(host) {
+  console.log(`🔄 Starting ping test for ${host}`);
+  
   return new Promise((resolve) => {
-    exec(`ping -n 1 -w 1000 ${host}`, (error, stdout) => {
-      if (error) return resolve(false);
-      if (stdout.includes('TTL=')) return resolve(true);
-      return resolve(false);
+    const pingCommand = `ping -n 4 -w 1000 ${host}`;
+    console.log(`📡 Executing: ${pingCommand}`);
+    
+    exec(pingCommand, (error, stdout, stderr) => {
+      console.log(`📡 Ping command completed for ${host}`);
+      console.log(`📡 Error:`, error);
+      console.log(`📡 Stdout length:`, stdout ? stdout.length : 0);
+      console.log(`📡 Stderr:`, stderr);
+      
+      if (error) {
+        console.log(`❌ Ping error for ${host}:`, error.message);
+        return resolve({ 
+          online: false, 
+          status: 'machine_offline',
+          reason: 'ping_error' 
+        });
+      }
+      
+      if (stderr) {
+        console.log(`⚠️ Ping stderr for ${host}:`, stderr);
+      }
+      
+      console.log(`📄 Raw ping output for ${host}:`, stdout ? stdout.substring(0, 200) + '...' : 'No output');
+      
+      if (!stdout) {
+        console.log(`❌ No stdout from ping command`);
+        return resolve({ 
+          online: false, 
+          status: 'machine_offline',
+          reason: 'no_output' 
+        });
+      }
+      
+      const lines = stdout.split('\n');
+      const responses = lines.filter(line => line.includes('Reply from'));
+      
+      console.log(`🔄 Ping responses for ${host}:`, responses.length, 'responses');
+      console.log(`📋 Response lines:`, responses);
+      
+      if (responses.length === 0) {
+        console.log(`❌ No ping responses for ${host}`);
+        return resolve({ 
+          online: false, 
+          status: 'machine_offline',
+          reason: 'no_response' 
+        });
+      }
+      
+      // วิเคราะห์ความเสถียร
+      const times = responses.map(line => {
+        const match = line.match(/time=(\d+)ms/);
+        const time = match ? parseInt(match[1]) : null;
+        console.log(`⏱️ Parsed time from "${line}": ${time}ms`);
+        return time;
+      }).filter(time => time !== null);
+      
+      console.log(`⏱️ Valid ping times for ${host}:`, times);
+      
+      if (times.length === 0) {
+        console.log(`❌ No valid ping times for ${host}`);
+        return resolve({ 
+          online: true, 
+          status: 'network_unstable',
+          reason: 'invalid_response' 
+        });
+      }
+      
+      const avgTime = times.reduce((sum, time) => sum + time, 0) / times.length;
+      const maxTime = Math.max(...times);
+      const minTime = Math.min(...times);
+      const variance = maxTime - minTime;
+      
+      console.log(`🔍 Ping analysis for ${host}:`, {
+        times,
+        avgTime: Math.round(avgTime),
+        maxTime,
+        minTime,
+        variance,
+        responseCount: times.length
+      });
+      
+      // กำหนดเกณฑ์ความเสถียร (ปรับปรุง)
+      let status = 'normal';
+      if (variance > 200) {
+        status = 'network_unstable';
+        console.log(`⚠️ High variance detected: ${variance}ms > 200ms`);
+      } else if (avgTime > 500) {
+        status = 'network_slow';
+        console.log(`🐌 High avg time detected: ${avgTime}ms > 500ms`);
+      } else {
+        console.log(`✅ Normal network conditions`);
+      }
+      
+      console.log(`🎯 Status determined for ${host}: ${status}`);
+      
+      return resolve({
+        online: true,
+        status: status,
+        avgTime: Math.round(avgTime),
+        maxTime,
+        minTime,
+        variance,
+        responseCount: times.length
+      });
     });
   });
 }
@@ -211,13 +313,27 @@ export function mapMachineToProductionPlan(machineName) {
   return mappedStation;
 }
 
+// แก้ไขฟังก์ชัน checkDbOnline
 export async function checkDbOnline(dbConfig) {
+  console.log(`🔍 Starting status check for ${dbConfig.name} (${dbConfig.host})`);
+  
   // ping host ก่อน
-  const isPing = await pingHost(dbConfig.host);
-  if (!isPing) {
-    console.error(`Ping failed: ${dbConfig.host}`);
-    return false;
+  console.log(`🔄 About to call pingHost for ${dbConfig.host}`);
+  const pingResult = await pingHost(dbConfig.host);
+  console.log(`✅ pingHost completed for ${dbConfig.host}:`, pingResult);
+  
+  if (!pingResult.online) {
+    console.error(`❌ Ping failed: ${dbConfig.host} - ${pingResult.reason}`);
+    return { 
+      online: false, 
+      status: 'machine_offline',
+      reason: pingResult.reason 
+    };
   }
+  
+  // แสดงข้อมูล ping
+  console.log(`📊 Ping result for ${dbConfig.host}: avg=${pingResult.avgTime}ms, variance=${pingResult.variance}ms, status=${pingResult.status}`);
+  
   const config = {
     user: dbConfig.user,
     password: dbConfig.password,
@@ -227,20 +343,40 @@ export async function checkDbOnline(dbConfig) {
     options: {
       encrypt: false,
       trustServerCertificate: true,
-      connectTimeout: 5000 // เพิ่ม timeout เป็น 5 วินาที
+      connectTimeout: 5000
     },
     pool: { max: 1, min: 0, idleTimeoutMillis: 5000 }
   };
+  
   let pool;
   try {
-    console.log('Checking DB:', dbConfig.name, dbConfig.host);
+    console.log(`🔌 Connecting to DB: ${dbConfig.name} (${dbConfig.host})`);
     pool = await new sql.ConnectionPool(config).connect();
     await pool.close();
-    return true;
+    console.log(`✅ DB connection successful for ${dbConfig.name}`);
+    
+    // ส่งกลับสถานะตาม ping result
+    const finalStatus = pingResult.status;
+    console.log(`🎯 Final status for ${dbConfig.name}: ${finalStatus}`);
+    
+    return { 
+      online: true, 
+      status: finalStatus,
+      avgPingTime: pingResult.avgTime,
+      pingVariance: pingResult.variance
+    };
   } catch (err) {
-    console.error(`DB ${dbConfig.name} (${dbConfig.host}) offline:`, err.message);
+    console.error(`❌ DB connection failed for ${dbConfig.name} (${dbConfig.host}):`, err.message);
     if (pool) await pool.close().catch(() => {});
-    return false;
+    
+    // ถ้า ping ได้แต่ DB เชื่อมต่อไม่ได้
+    return { 
+      online: false, 
+      status: 'machine_offline',
+      reason: 'db_connection_failed',
+      avgPingTime: pingResult.avgTime,
+      pingVariance: pingResult.variance
+    };
   }
 }
 

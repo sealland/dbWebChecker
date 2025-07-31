@@ -84,6 +84,41 @@ function groupByCategory(instances) {
   return categories;
 }
 
+// แก้ไขฟังก์ชัน getStatusDescription
+const getStatusDescription = (status) => {
+  if (!status) return 'ไม่ทราบสถานะ';
+  
+  switch (status) {
+    case 'normal':
+      return 'สัญญาณปกติ';
+    case 'network_unstable':
+      return 'สัญญาณไม่เสถียร';
+    case 'network_slow':
+      return 'สัญญาณช้า';
+    case 'machine_offline':
+      return 'เครื่องไม่ได้เปิด';
+    default:
+      return 'ไม่ทราบสถานะ';
+  }
+};
+
+// แก้ไขฟังก์ชัน getStatusColor
+const getStatusColor = (status) => {
+  if (!status) return '#9e9e9e'; // เทา
+  
+  switch (status) {
+    case 'normal':
+      return '#4caf50'; // เขียว
+    case 'network_unstable':
+    case 'network_slow':
+      return '#ff9800'; // ส้ม
+    case 'machine_offline':
+      return '#f44336'; // แดง
+    default:
+      return '#9e9e9e'; // เทา
+  }
+};
+
 function App() {
   const [instances, setInstances] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -105,19 +140,28 @@ function App() {
   const [loadingStatus, setLoadingStatus] = useState({}); // สถานะการเช็คสถานะเครื่อง
   const [loadingProduction, setLoadingProduction] = useState({}); // สถานะการดึงข้อมูลผลิต
 
-  // โหลดข้อมูล (ใช้ทั้ง auto และ manual refresh)
+  // แก้ไขฟังก์ชัน fetchInstances
   const fetchInstances = async (showLoading = true) => {
     if (showLoading) setLoading(true);
     setRefreshing(true);
     try {
       const res = await axios.get(API_URL);
-      setInstances(res.data);
+      
+      // เพิ่มค่าเริ่มต้นสำหรับ status ให้กับทุกเครื่อง
+      const instancesWithStatus = res.data.map(instance => ({
+        ...instance,
+        status: instance.online ? 'normal' : 'machine_offline',
+        statusText: instance.online ? 'สัญญาณปกติ' : 'เครื่องไม่ได้เปิด',
+        statusColor: instance.online ? 'success' : 'error'
+      }));
+      
+      setInstances(instancesWithStatus);
       setLastUpdate(new Date());
       
       // ดึงข้อมูลผลิตล่าสุดสำหรับทุกเครื่องอัตโนมัติ (เพิ่ม delay)
       console.log('🔍 Fetching production data for all machines...');
-      for (let i = 0; i < res.data.length; i++) {
-        const instance = res.data[i];
+      for (let i = 0; i < instancesWithStatus.length; i++) {
+        const instance = instancesWithStatus[i];
         // เพิ่ม delay 1000ms ระหว่างการเรียก API
         setTimeout(() => {
           fetchLatestProductionData(instance);
@@ -145,20 +189,37 @@ function App() {
         params: { name: instance.name }
       });
       
+      const statusInfo = response.data;
+      
       // อัพเดตสถานะใน instances array
       setInstances(prev => prev.map(inst => 
         inst.name === instance.name 
-          ? { ...inst, online: response.data.online }
+          ? { 
+              ...inst, 
+              online: statusInfo.online,
+              status: statusInfo.status,
+              statusText: statusInfo.statusText,
+              statusColor: statusInfo.statusColor,
+              avgPingTime: statusInfo.avgPingTime,
+              pingVariance: statusInfo.pingVariance,
+              lastChecked: new Date()
+            }
           : inst
       ));
       
-      console.log(`✅ ${instance.name} status:`, response.data.online ? 'online' : 'offline');
+      // แสดงข้อความตามสถานะ
+      console.log(`✅ ${instance.name}: ${statusInfo.statusText} (${statusInfo.avgPingTime}ms)`);
     } catch (error) {
       console.error(`❌ Error checking status for ${instance.name}:`, error);
-      // อัพเดตสถานะเป็น offline ถ้าเกิดข้อผิดพลาด
       setInstances(prev => prev.map(inst => 
         inst.name === instance.name 
-          ? { ...inst, online: false }
+          ? { 
+              ...inst, 
+              online: false, 
+              status: 'machine_offline',
+              statusText: 'เครื่องไม่ได้เปิด',
+              statusColor: 'error'
+            }
           : inst
       ));
     } finally {
@@ -662,6 +723,38 @@ function App() {
                         }}
                         onClick={() => handleCardClick(instance)}
                       >
+                        {/* เพิ่มคำอธิบายสีในมุมบนขวา */}
+                        <Box sx={{
+                          position: 'absolute',
+                          top: 8,
+                          right: 8,
+                          zIndex: 10,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 0.5
+                        }}>
+                          <Box sx={{
+                            width: 6,
+                            height: 6,
+                            borderRadius: '50%',
+                            bgcolor: getStatusColor(instance.status),
+                            border: '1px solid rgba(255,255,255,0.8)',
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+                          }} />
+                          <Typography variant="caption" sx={{
+                            fontSize: 10,
+                            color: 'rgba(0,0,0,0.6)',
+                            fontWeight: 500,
+                            textShadow: '0 1px 2px rgba(255,255,255,0.8)',
+                            backgroundColor: 'rgba(255,255,255,0.9)',
+                            padding: '1px 4px',
+                            borderRadius: 1,
+                            border: '1px solid rgba(0,0,0,0.1)'
+                          }}>
+                            {getStatusDescription(instance.status)}
+                          </Typography>
+                        </Box>
+
                         <CardContent sx={{ p: 0, height: '100%', display: 'flex', flexDirection: 'column' }}>
                           {/* Header Section with Gradient Background */}
                           <Box sx={{
@@ -692,7 +785,7 @@ function App() {
                                   width: 20,
                                   height: 20,
                                   borderRadius: '50%',
-                                  bgcolor: instance.online ? '#4caf50' : '#f44336',
+                                  bgcolor: getStatusColor(instance.status),
                                   display: 'flex',
                                   alignItems: 'center',
                                   justifyContent: 'center',
@@ -730,7 +823,7 @@ function App() {
                                     width: 8,
                                     height: 8,
                                     borderRadius: '50%',
-                                    bgcolor: instance.online ? '#4caf50' : '#f44336',
+                                    bgcolor: getStatusColor(instance.status),
                                     animation: instance.online ? 'pulse 2s infinite' : 'none',
                                     '@keyframes pulse': {
                                       '0%': { opacity: 1 },
@@ -739,14 +832,35 @@ function App() {
                                     }
                                   }} />
                                   <Typography variant="caption" sx={{ 
-                                    color: instance.online ? '#4caf50' : '#f44336',
+                                    color: getStatusColor(instance.status),
                                     fontWeight: 600,
                                     textTransform: 'uppercase',
                                     letterSpacing: 0.5
                                   }}>
-                                    {instance.online ? 'Online' : 'Offline'}
+                                    {instance.statusText || (instance.online ? 'Online' : 'Offline')}
                                   </Typography>
                                 </Box>
+                                
+                                {/* เพิ่มข้อมูล Ping และเวลาอัปเดต */}
+                                {instance.online && instance.avgPingTime && (
+                                  <Typography variant="caption" color="text.secondary" sx={{ 
+                                    fontSize: 10,
+                                    display: 'block',
+                                    mt: 0.5
+                                  }}>
+                                    Ping: {instance.avgPingTime}ms
+                                    {instance.pingVariance > 100 && ` (Variance: ${instance.pingVariance}ms)`}
+                                  </Typography>
+                                )}
+                                
+                                {instance.lastChecked && (
+                                  <Typography variant="caption" color="text.secondary" sx={{ 
+                                    fontSize: 10,
+                                    display: 'block'
+                                  }}>
+                                    อัปเดต: {formatTime(instance.lastChecked)}
+                                  </Typography>
+                                )}
                               </Box>
                             </Box>
                           </Box>

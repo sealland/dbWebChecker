@@ -38,11 +38,70 @@ router.get('/instances/list', (req, res) => {
 // GET /api/instances/status?name=... - เช็คสถานะ online เฉพาะเครื่อง
 router.get('/instances/status', async (req, res) => {
   const { name } = req.query;
+  console.log(`🔍 Status check request for: ${name}`);
+  
   if (!name) return res.status(400).json({ error: 'ต้องระบุ name' });
+  
   const dbConfig = getDbConfigByName(name);
-  if (!dbConfig) return res.status(404).json({ error: 'ไม่พบเครื่องที่ระบุ' });
-  const online = await checkDbOnline(dbConfig);
-  res.json({ name, online });
+  if (!dbConfig) {
+    console.log(`❌ Database config not found for: ${name}`);
+    return res.status(404).json({ error: 'ไม่พบเครื่องที่ระบุ' });
+  }
+  
+  console.log(`📋 Found config for ${name}:`, {
+    host: dbConfig.host,
+    database: dbConfig.database
+  });
+  
+  const result = await checkDbOnline(dbConfig);
+  
+  console.log(`📊 Status check result for ${name}:`, {
+    online: result.online,
+    status: result.status,
+    avgPingTime: result.avgPingTime,
+    pingVariance: result.pingVariance,
+    reason: result.reason
+  });
+  
+  // แปลง status เป็นข้อความภาษาไทย
+  let statusText = '';
+  let statusColor = '';
+  
+  switch (result.status) {
+    case 'normal':
+      statusText = 'สัญญาณปกติ';
+      statusColor = 'success';
+      break;
+    case 'network_unstable':
+      statusText = 'สัญญาณมีปัญหา';
+      statusColor = 'warning';
+      break;
+    case 'network_slow':
+      statusText = 'สัญญาณช้า';
+      statusColor = 'warning';
+      break;
+    case 'machine_offline':
+      statusText = 'เครื่องไม่ได้เปิด';
+      statusColor = 'error';
+      break;
+    default:
+      console.log(`⚠️ Unknown status: ${result.status}`);
+      statusText = 'ไม่ทราบสถานะ';
+      statusColor = 'error';
+  }
+  
+  console.log(`🎯 Final status for ${name}: ${statusText} (${result.status})`);
+  
+  res.json({ 
+    name, 
+    online: result.online,
+    status: result.status,
+    statusText: statusText,
+    statusColor: statusColor,
+    avgPingTime: result.avgPingTime,
+    pingVariance: result.pingVariance,
+    reason: result.reason
+  });
 });
 
 // GET /api/instances/finish-goods?name=... - ดึง finish goods ล่าสุด
