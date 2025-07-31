@@ -195,9 +195,9 @@
   {
     "name": "CEO Report",
     "host": "192.168.100.222",
-    "database": "ceo_report",
+    "database": "CEO_REPORT",
     "user": "sa",
     "password": "",
-    "m": "ceo_report"
+    "m": "CEO_REPORT"
   }
 ]

@@ -624,7 +624,7 @@ router.post('/compare/update', async (req, res) => {
     return res.status(404).json({ error: 'ไม่พบเครื่องที่ระบุ' });
   }
   try {
-    const result = await updateProductionPlan(dbConfig, station, fromDate, toDate, shift || "Z", user || "system");
+    const result = await updateProductionPlan(dbConfig, station, fromDate, toDate, "Z", user || "system");
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: 'เกิดข้อผิดพลาดในการอัพเดตข้อมูล', detail: err.message });
