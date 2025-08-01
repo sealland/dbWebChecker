@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import axios from 'axios';
+import { getApiUrl, getApiEndpoints } from './config';
 import {
   Box,
   Grid,
@@ -40,7 +41,9 @@ import GetAppIcon from '@mui/icons-material/GetApp';
 import WifiIcon from '@mui/icons-material/Wifi';
 import { useLocation } from 'react-router-dom';
 
-const API_URL = 'http://localhost:4001/api/instances';
+// ใช้ API endpoints จาก config
+const endpoints = getApiEndpoints();
+const API_URL = getApiUrl(endpoints.instances);
 const REFRESH_INTERVAL = 300000; // 5 นาที (5 * 60 * 1000 = 300000 ms)
 
 function StatusAvatar({ online }) {
@@ -139,6 +142,7 @@ function App() {
   const [lastFetchTime, setLastFetchTime] = useState({}); // เวลาที่เรียก API ล่าสุด
   const [loadingStatus, setLoadingStatus] = useState({}); // สถานะการเช็คสถานะเครื่อง
   const [loadingProduction, setLoadingProduction] = useState({}); // สถานะการดึงข้อมูลผลิต
+  const [checkingAllStatus, setCheckingAllStatus] = useState(false); // สถานะการเช็คสถานะเครื่องทั้งหมด
 
   // แก้ไขฟังก์ชัน fetchInstances
   const fetchInstances = async (showLoading = true) => {
@@ -158,7 +162,11 @@ function App() {
       setInstances(instancesWithStatus);
       setLastUpdate(new Date());
       
-      // ดึงข้อมูลผลิตล่าสุดสำหรับทุกเครื่องอัตโนมัติ (เพิ่ม delay)
+      // เช็คสถานะเครื่องทันทีหลังจากโหลดรายชื่อ
+      console.log('🔍 Checking machine status for all instances...');
+      await checkAllMachineStatus(instancesWithStatus);
+      
+      // ดึงข้อมูลผลิตล่าสุดสำหรับทุกเครื่องอัตโนมัติ (หลังจากเช็คสถานะเสร็จ)
       console.log('🔍 Fetching production data for all machines...');
       for (let i = 0; i < instancesWithStatus.length; i++) {
         const instance = instancesWithStatus[i];
@@ -227,6 +235,77 @@ function App() {
     }
   };
 
+  // ฟังก์ชันเช็คสถานะเครื่องทั้งหมดพร้อมกัน
+  const checkAllMachineStatus = async (instances) => {
+    if (instances.length === 0) return;
+    
+    setCheckingAllStatus(true);
+    try {
+      console.log('🔍 Checking status for all machines...');
+      
+      // สร้าง array ของ promises สำหรับเช็คสถานะพร้อมกัน
+      const statusPromises = instances.map(async (instance) => {
+        try {
+          const response = await axios.get(`${API_URL}/status`, {
+            params: { name: instance.name }
+          });
+          
+          const statusInfo = response.data;
+          console.log(`✅ ${instance.name}: ${statusInfo.statusText} (${statusInfo.avgPingTime}ms)`);
+          
+          return {
+            name: instance.name,
+            success: true,
+            data: statusInfo
+          };
+        } catch (error) {
+          console.error(`❌ Error checking status for ${instance.name}:`, error);
+          return {
+            name: instance.name,
+            success: false,
+            error: error.message
+          };
+        }
+      });
+      
+      // รอให้ทุกการเช็คสถานะเสร็จสิ้น
+      const results = await Promise.all(statusPromises);
+      
+      // อัพเดตสถานะของทุกเครื่อง
+      setInstances(prev => prev.map(inst => {
+        const result = results.find(r => r.name === inst.name);
+        if (result && result.success) {
+          return {
+            ...inst,
+            online: result.data.online,
+            status: result.data.status,
+            statusText: result.data.statusText,
+            statusColor: result.data.statusColor,
+            avgPingTime: result.data.avgPingTime,
+            pingVariance: result.data.pingVariance,
+            lastChecked: new Date()
+          };
+        } else if (result && !result.success) {
+          return {
+            ...inst,
+            online: false,
+            status: 'machine_offline',
+            statusText: 'เครื่องไม่ได้เปิด',
+            statusColor: 'error',
+            lastChecked: new Date()
+          };
+        }
+        return inst;
+      }));
+      
+      console.log('✅ All machine status checks completed');
+    } catch (error) {
+      console.error('❌ Error checking all machine status:', error);
+    } finally {
+      setCheckingAllStatus(false);
+    }
+  };
+
   // ฟังก์ชันดึงข้อมูลผลิตล่าสุด
   const fetchLatestProductionData = async (instance) => {
     setLoadingProduction(prev => ({ ...prev, [instance.name]: true }));
@@ -234,7 +313,7 @@ function App() {
       console.log(`🔍 Fetching production data for: ${instance.name}`);
       
       // เรียก card-data API เฉพาะเครื่องที่เลือก
-      const cardDataResponse = await axios.get(`http://localhost:4001/api/instances/card-data/${encodeURIComponent(instance.name)}`);
+      const cardDataResponse = await axios.get(getApiUrl(`${endpoints.cardData}/${encodeURIComponent(instance.name)}`));
       
       if (cardDataResponse.data.success) {
         const cardData = cardDataResponse.data.data;
@@ -311,12 +390,12 @@ function App() {
       
       // ดึงข้อมูล finish goods ล่าสุด
       console.log('🔍 Calling finish-goods API with param:', machineParam);
-      const finishGoodsResponse = await axios.get(`http://localhost:4001/api/instances/finish-goods?name=${encodeURIComponent(instance.name)}`);
+      const finishGoodsResponse = await axios.get(getApiUrl(`${endpoints.finishGoods}?name=${encodeURIComponent(instance.name)}`));
       console.log('🔍 Finish goods response:', finishGoodsResponse.data);
       
       // ดึงข้อมูลแผนผลิต
       console.log('🔍 Calling production-plan API with param:', machineParam);
-      const productionPlanResponse = await axios.get(`http://localhost:4001/api/instances/production-plan?name=${encodeURIComponent(instance.name)}`);
+      const productionPlanResponse = await axios.get(getApiUrl(`${endpoints.productionPlan}?name=${encodeURIComponent(instance.name)}`));
       console.log('🔍 Production plan response:', productionPlanResponse.data);
       
       const cardData = {
@@ -357,7 +436,7 @@ function App() {
     setLoadingCompare(true);
     try {
       // ดึงข้อมูลทั้งสองฝั่งพร้อมกัน
-      const response = await axios.get('http://localhost:4001/api/compare/both', {
+      const response = await axios.get(getApiUrl(endpoints.compare.both), {
         params: {
           name: selected.name,
           station: selected.name, // ใช้ชื่อเครื่องเป็น station
@@ -404,7 +483,7 @@ function App() {
         toDate: compareDates.to
       });
       
-      const response = await axios.post('http://localhost:4001/api/compare/update', {
+      const response = await axios.post(getApiUrl(endpoints.compare.update), {
         name: selected.name,
         station: selected.name,
         fromDate: compareDates.from,
@@ -644,6 +723,18 @@ function App() {
           <Typography variant="h5" fontWeight={700} color="primary.main" sx={{ flexGrow: 1 }}>
             Instance Status Dashboard
           </Typography>
+          <Tooltip title="เช็คสถานะเครื่องทั้งหมด">
+            <span>
+              <IconButton 
+                color="secondary" 
+                onClick={() => checkAllMachineStatus(instances)} 
+                disabled={refreshing || instances.length === 0 || checkingAllStatus}
+                sx={{ mr: 1 }}
+              >
+                {checkingAllStatus ? <CircularProgress size={24} /> : <WifiIcon />}
+              </IconButton>
+            </span>
+          </Tooltip>
           <Tooltip title="โหลดรายชื่อเครื่อง">
             <span>
               <IconButton color="primary" onClick={() => fetchInstances()} disabled={refreshing}>
@@ -659,6 +750,14 @@ function App() {
             {lastUpdate ? `อัปเดตล่าสุด: ${formatTime(lastUpdate)}` : 'ยังไม่ได้โหลดข้อมูล'}
           </Typography>
           {refreshing && <CircularProgress size={16} />}
+          {checkingAllStatus && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <CircularProgress size={16} />
+              <Typography variant="caption" color="text.secondary">
+                กำลังเช็คสถานะเครื่อง...
+              </Typography>
+            </Box>
+          )}
         </Box>
         {loading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}>
