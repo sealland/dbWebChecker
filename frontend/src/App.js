@@ -97,25 +97,27 @@ function App() {
                   {instances.length === 0 ? (
                     <MenuItem disabled>กำลังโหลด...</MenuItem>
                   ) : (
-                    instances.map(i => {
-                      const online = statusMap[i.name];
-                      const loading = statusLoading[i.name];
-                      return (
-                        <MenuItem key={i.name} value={i.name} disabled={loading ? true : online === false}>
-                          {loading ? (
-                            <span style={{ display: 'inline-flex', alignItems: 'center' }}>
-                              <CircleIcon fontSize="small" sx={{ color: 'gray', mr: 1 }} />
-                              {i.name} (กำลังเช็ค...)
-                            </span>
-                          ) : (
-                            <span style={{ display: 'inline-flex', alignItems: 'center' }}>
-                              <CircleIcon fontSize="small" sx={{ color: online ? '#2e7d32' : '#bdbdbd', mr: 1 }} />
-                              {i.name} {online ? '' : '(ออฟไลน์)'}
-                            </span>
-                          )}
-                        </MenuItem>
-                      );
-                    })
+                    instances
+                      .filter(i => i.name !== 'CEO Report') // ซ่อน CEO Report
+                      .map(i => {
+                        const online = statusMap[i.name];
+                        const loading = statusLoading[i.name];
+                        return (
+                          <MenuItem key={i.name} value={i.name} disabled={loading ? true : online === false}>
+                            {loading ? (
+                              <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                                <CircleIcon fontSize="small" sx={{ color: 'gray', mr: 1 }} />
+                                {i.name} (กำลังเช็ค...)
+                              </span>
+                            ) : (
+                              <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                                <CircleIcon fontSize="small" sx={{ color: online ? '#2e7d32' : '#bdbdbd', mr: 1 }} />
+                                {i.name} {online ? '' : '(ออฟไลน์)'}
+                              </span>
+                            )}
+                          </MenuItem>
+                        );
+                      })
                   )}
                 </Select>
               </FormControl>

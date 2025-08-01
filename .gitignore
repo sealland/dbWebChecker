@@ -19,6 +19,7 @@ logs/
 # Output
 /dist/
 /build/
+/frontend/build/*
 *.out
 *.xlsx
 *.xls

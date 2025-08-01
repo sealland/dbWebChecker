@@ -1,10 +1,10 @@
 {
   "files": {
-    "main.js": "/dbwebchecker/static/js/main.3a6b51b0.js",
+    "main.js": "/dbwebchecker/static/js/main.952446db.js",
     "index.html": "/dbwebchecker/index.html",
-    "main.3a6b51b0.js.map": "/dbwebchecker/static/js/main.3a6b51b0.js.map"
+    "main.952446db.js.map": "/dbwebchecker/static/js/main.952446db.js.map"
   },
   "entrypoints": [
-    "static/js/main.3a6b51b0.js"
+    "static/js/main.952446db.js"
   ]
 }
