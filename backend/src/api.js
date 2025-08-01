@@ -38,24 +38,24 @@ router.get('/instances/list', (req, res) => {
 // GET /api/instances/status?name=... - เช็คสถานะ online เฉพาะเครื่อง
 router.get('/instances/status', async (req, res) => {
   const { name } = req.query;
-  console.log(`🔍 Status check request for: ${name}`);
+  console.log(`[DEBUG] Status check request for: ${name}`);
   
   if (!name) return res.status(400).json({ error: 'ต้องระบุ name' });
   
   const dbConfig = getDbConfigByName(name);
   if (!dbConfig) {
-    console.log(`❌ Database config not found for: ${name}`);
+    console.log(`[ERROR] Database config not found for: ${name}`);
     return res.status(404).json({ error: 'ไม่พบเครื่องที่ระบุ' });
   }
   
-  console.log(`📋 Found config for ${name}:`, {
+  console.log(`[INFO] Found config for ${name}:`, {
     host: dbConfig.host,
     database: dbConfig.database
   });
   
   const result = await checkDbOnline(dbConfig);
   
-  console.log(`📊 Status check result for ${name}:`, {
+  console.log(`[INFO] Status check result for ${name}:`, {
     online: result.online,
     status: result.status,
     avgPingTime: result.avgPingTime,
@@ -85,12 +85,12 @@ router.get('/instances/status', async (req, res) => {
       statusColor = 'error';
       break;
     default:
-      console.log(`⚠️ Unknown status: ${result.status}`);
+      console.log(`[WARN] Unknown status: ${result.status}`);
       statusText = 'ไม่ทราบสถานะ';
       statusColor = 'error';
   }
   
-  console.log(`🎯 Final status for ${name}: ${statusText} (${result.status})`);
+  console.log(`[INFO] Final status for ${name}: ${statusText} (${result.status})`);
   
   res.json({ 
     name, 
@@ -300,26 +300,46 @@ function sanitizeFilename(name) {
 
 // GET /api/a2rpt/export?name=...&year=2024&month=6
 router.get('/a2rpt/export', async (req, res) => {
+  console.log('=== /api/a2rpt/export ===');
+  console.log('Request query:', req.query);
+  
   const { name, year, month } = req.query;
   if (!name || !year || !month) {
+    console.log('Missing required parameters');
     return res.status(400).json({ error: 'ต้องระบุ name, year, month' });
   }
+  
+  console.log('Parameters:', { name, year, month });
+  
   const dbConfig = getDbConfigByName(name);
   if (!dbConfig) {
+    console.log('Database config not found for:', name);
     return res.status(404).json({ error: 'ไม่พบเครื่องที่ระบุ' });
   }
+  
+  console.log('Found DB Config:', {
+    name: dbConfig.name,
+    host: dbConfig.host,
+    database: dbConfig.database
+  });
   try {
+    console.log('Starting data retrieval...');
+    
     // ดึงข้อมูลทั้งหมด (ไม่แบ่งหน้า)
     let page = 1;
     const pageSize = 1000;
     let allData = [];
     while (true) {
+      console.log(`Fetching page ${page}...`);
       const data = await queryA2Rpt(dbConfig, year, month, page, pageSize);
+      console.log(`Page ${page} result:`, data.length, 'records');
       if (!data.length) break;
       allData = allData.concat(data);
       if (data.length < pageSize) break;
       page++;
     }
+    
+    console.log('Total data retrieved:', allData.length, 'records');
     // ดึง summary
     const summary = await queryA2RptSummary(dbConfig, year, month);
     // ดึง sum ทั้งหมด
@@ -411,6 +431,13 @@ router.get('/a2rpt/export', async (req, res) => {
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.send(buffer);
   } catch (err) {
+    console.error('Error in /api/a2rpt/export:', err.message);
+    console.error('Error details:', {
+      code: err.code,
+      state: err.state,
+      serverName: err.serverName,
+      lineNumber: err.lineNumber
+    });
     res.status(500).json({ error: 'เกิดข้อผิดพลาดในการ export Excel', detail: err.message });
   }
 });

@@ -40,7 +40,7 @@ import GetAppIcon from '@mui/icons-material/GetApp';
 import WifiIcon from '@mui/icons-material/Wifi';
 import { useLocation } from 'react-router-dom';
 
-const API_URL = 'http://localhost:4000/api/instances';
+const API_URL = 'http://localhost:4001/api/instances';
 const REFRESH_INTERVAL = 300000; // 5 นาที (5 * 60 * 1000 = 300000 ms)
 
 function StatusAvatar({ online }) {
@@ -234,7 +234,7 @@ function App() {
       console.log(`🔍 Fetching production data for: ${instance.name}`);
       
       // เรียก card-data API เฉพาะเครื่องที่เลือก
-      const cardDataResponse = await axios.get(`http://localhost:4000/api/instances/card-data/${encodeURIComponent(instance.name)}`);
+      const cardDataResponse = await axios.get(`http://localhost:4001/api/instances/card-data/${encodeURIComponent(instance.name)}`);
       
       if (cardDataResponse.data.success) {
         const cardData = cardDataResponse.data.data;
@@ -311,16 +311,12 @@ function App() {
       
       // ดึงข้อมูล finish goods ล่าสุด
       console.log('🔍 Calling finish-goods API with param:', machineParam);
-      const finishGoodsResponse = await axios.get('http://localhost:4000/api/instances/finish-goods', {
-        params: { name: machineParam }
-      });
+      const finishGoodsResponse = await axios.get(`http://localhost:4001/api/instances/finish-goods?name=${encodeURIComponent(instance.name)}`);
       console.log('🔍 Finish goods response:', finishGoodsResponse.data);
       
       // ดึงข้อมูลแผนผลิต
       console.log('🔍 Calling production-plan API with param:', machineParam);
-      const productionPlanResponse = await axios.get('http://localhost:4000/api/instances/production-plan', {
-        params: { name: machineParam }
-      });
+      const productionPlanResponse = await axios.get(`http://localhost:4001/api/instances/production-plan?name=${encodeURIComponent(instance.name)}`);
       console.log('🔍 Production plan response:', productionPlanResponse.data);
       
       const cardData = {
@@ -361,7 +357,7 @@ function App() {
     setLoadingCompare(true);
     try {
       // ดึงข้อมูลทั้งสองฝั่งพร้อมกัน
-      const response = await axios.get('http://localhost:4000/api/compare/both', {
+      const response = await axios.get('http://localhost:4001/api/compare/both', {
         params: {
           name: selected.name,
           station: selected.name, // ใช้ชื่อเครื่องเป็น station
@@ -408,7 +404,7 @@ function App() {
         toDate: compareDates.to
       });
       
-      const response = await axios.post('http://localhost:4000/api/compare/update', {
+      const response = await axios.post('http://localhost:4001/api/compare/update', {
         name: selected.name,
         station: selected.name,
         fromDate: compareDates.from,

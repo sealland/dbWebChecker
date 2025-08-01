@@ -2,10 +2,11 @@ import sql from 'mssql';
 import fs from 'fs';
 import path from 'path';
 import { exec } from 'child_process';
+import { fileURLToPath } from 'url';
 
-
-
-const configPath = path.join(process.cwd(), '..', 'db_instances.config.json');
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const configPath = path.join(__dirname, '..', 'db_instances.config.json');
 const dbInstances = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
 
 export function getDbConfigByName(name) {
@@ -18,20 +19,20 @@ export function getAllDbConfigs() {
 
 // แก้ไขฟังก์ชัน pingHost
 function pingHost(host) {
-  console.log(`🔄 Starting ping test for ${host}`);
+  console.log(`[DEBUG] Starting ping test for ${host}`);
   
   return new Promise((resolve) => {
     const pingCommand = `ping -n 4 -w 1000 ${host}`;
-    console.log(`📡 Executing: ${pingCommand}`);
+    console.log(`[DEBUG] Executing: ${pingCommand}`);
     
     exec(pingCommand, (error, stdout, stderr) => {
-      console.log(`📡 Ping command completed for ${host}`);
-      console.log(`📡 Error:`, error);
-      console.log(`📡 Stdout length:`, stdout ? stdout.length : 0);
-      console.log(`📡 Stderr:`, stderr);
+      console.log(`[DEBUG] Ping command completed for ${host}`);
+      console.log(`[ERROR] Ping error:`, error);
+      console.log(`[DEBUG] Stdout length:`, stdout ? stdout.length : 0);
+      console.log(`[ERROR] Stderr:`, stderr);
       
       if (error) {
-        console.log(`❌ Ping error for ${host}:`, error.message);
+        console.log(`[ERROR] Ping error for ${host}:`, error.message);
         return resolve({ 
           online: false, 
           status: 'machine_offline',
@@ -40,13 +41,13 @@ function pingHost(host) {
       }
       
       if (stderr) {
-        console.log(`⚠️ Ping stderr for ${host}:`, stderr);
+        console.log(`[WARN] Ping stderr for ${host}:`, stderr);
       }
       
-      console.log(`📄 Raw ping output for ${host}:`, stdout ? stdout.substring(0, 200) + '...' : 'No output');
+      console.log(`[DEBUG] Raw ping output for ${host}:`, stdout ? stdout.substring(0, 200) + '...' : 'No output');
       
       if (!stdout) {
-        console.log(`❌ No stdout from ping command`);
+        console.log(`[ERROR] No stdout from ping command`);
         return resolve({ 
           online: false, 
           status: 'machine_offline',
@@ -57,11 +58,11 @@ function pingHost(host) {
       const lines = stdout.split('\n');
       const responses = lines.filter(line => line.includes('Reply from'));
       
-      console.log(`🔄 Ping responses for ${host}:`, responses.length, 'responses');
-      console.log(`📋 Response lines:`, responses);
+      console.log(`[DEBUG] Ping responses for ${host}:`, responses.length, 'responses');
+      console.log(`[DEBUG] Response lines:`, responses);
       
       if (responses.length === 0) {
-        console.log(`❌ No ping responses for ${host}`);
+        console.log(`[ERROR] No ping responses for ${host}`);
         return resolve({ 
           online: false, 
           status: 'machine_offline',
@@ -73,14 +74,14 @@ function pingHost(host) {
       const times = responses.map(line => {
         const match = line.match(/time=(\d+)ms/);
         const time = match ? parseInt(match[1]) : null;
-        console.log(`⏱️ Parsed time from "${line}": ${time}ms`);
+        console.log(`[DEBUG] Parsed time from "${line}": ${time}ms`);
         return time;
       }).filter(time => time !== null);
       
-      console.log(`⏱️ Valid ping times for ${host}:`, times);
+      console.log(`[DEBUG] Valid ping times for ${host}:`, times);
       
       if (times.length === 0) {
-        console.log(`❌ No valid ping times for ${host}`);
+        console.log(`[ERROR] No valid ping times for ${host}`);
         return resolve({ 
           online: true, 
           status: 'network_unstable',
@@ -93,7 +94,7 @@ function pingHost(host) {
       const minTime = Math.min(...times);
       const variance = maxTime - minTime;
       
-      console.log(`🔍 Ping analysis for ${host}:`, {
+      console.log(`[DEBUG] Ping analysis for ${host}:`, {
         times,
         avgTime: Math.round(avgTime),
         maxTime,
@@ -106,15 +107,15 @@ function pingHost(host) {
       let status = 'normal';
       if (variance > 200) {
         status = 'network_unstable';
-        console.log(`⚠️ High variance detected: ${variance}ms > 200ms`);
+        console.log(`[WARN] High variance detected: ${variance}ms > 200ms`);
       } else if (avgTime > 500) {
         status = 'network_slow';
-        console.log(`🐌 High avg time detected: ${avgTime}ms > 500ms`);
+        console.log(`[WARN] High avg time detected: ${avgTime}ms > 500ms`);
       } else {
-        console.log(`✅ Normal network conditions`);
+        console.log(`[INFO] Normal network conditions`);
       }
       
-      console.log(`🎯 Status determined for ${host}: ${status}`);
+      console.log(`[INFO] Status determined for ${host}: ${status}`);
       
       return resolve({
         online: true,
@@ -130,29 +131,29 @@ function pingHost(host) {
 }
 
 export function mapMachineToSourceFormat(stationName) {
-  console.log('🔄 Mapping machine to Source format:', stationName);
+  console.log('[DEBUG] Mapping machine to Source format:', stationName);
   const machineConfig = dbInstances.find(instance => instance.name === stationName);
   const sourceFormat = machineConfig ? machineConfig.m : null;
   if (sourceFormat) {
-      console.log(`  → Found in config, using source_format: ${sourceFormat}`);
+      console.log(`[INFO] Found in config, using source_format: ${sourceFormat}`);
   } else {
-      console.warn(`  → WARN: No 'm' field (source_format) found for ${stationName} in config.`);
+      console.warn(`[WARN] No 'm' field (source_format) found for ${stationName} in config.`);
   }
   return sourceFormat;
 }
 
 // Mapper สำหรับหาชื่อ Station ใน Production Plan DB
 export function mapMachineToProductionPlanFormat(stationName) {
-  console.log('🔄 Mapping machine to Production Plan format:', stationName);
+  console.log('[DEBUG] Mapping machine to Production Plan format:', stationName);
   const machineConfig = dbInstances.find(instance => instance.name === stationName);
   
   // ตรวจสอบค่า 'production_plan_format' ใน config ก่อน
   if (machineConfig && machineConfig.production_plan_format) {
-      console.log(`  → Found in config, using production_plan_format: ${machineConfig.production_plan_format}`);
+      console.log(`[INFO] Found in config, using production_plan_format: ${machineConfig.production_plan_format}`);
       return machineConfig.production_plan_format;
   }
   
-  console.log(`  → No 'production_plan_format' in config, using fallback mapping.`);
+  console.log(`[INFO] No 'production_plan_format' in config, using fallback mapping.`);
   // Fallback mapping สำหรับเครื่องที่ไม่มีใน config
   const mapping = {
     'ท่อดำ #1': 'OCP I1', 'ท่อดำ #2': 'OCP I2', 'ท่อดำ #3': 'OCP I3', 'ท่อดำ #4': 'OCP I4',
@@ -161,17 +162,16 @@ export function mapMachineToProductionPlanFormat(stationName) {
     'ตัวซี #5': 'OCP H5', 'ตัวซี #6': 'OCP H6',
   };
   const mappedStation = mapping[stationName] || stationName;
-  console.log('  → Mapped to:', mappedStation);
+  console.log('[INFO] Mapped to:', mappedStation);
   return mappedStation;
 }
 
-
 // เพิ่มฟังก์ชันนี้หลัง import statements
 export function mapMachineToStation(machineName) {
-  console.log('🔄 Mapping machine name:', machineName);
+  console.log('[DEBUG] Mapping machine name:', machineName);
   
   // ดึงข้อมูลจาก config file
-  const configPath = path.join(process.cwd(), '..', 'db_instances.config.json');
+  
   const dbInstances = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
   
   // หาเครื่องที่ตรงกับชื่อ
@@ -184,17 +184,17 @@ export function mapMachineToStation(machineName) {
     // แปลง plates1, plates2, plates4 เป็น P1, P2, P4 สำหรับ production_scale
     if (machineConfig.m === 'plates1') {
       mappedStation = 'P1';
-      console.log(`  → Converting ${machineConfig.m} → ${mappedStation} for production_scale`);
+      console.log(`[INFO] Converting ${machineConfig.m} -> ${mappedStation} for production_scale`);
     } else if (machineConfig.m === 'plates2') {
       mappedStation = 'P2';
-      console.log(`  → Converting ${machineConfig.m} → ${mappedStation} for production_scale`);
+      console.log(`[INFO] Converting ${machineConfig.m} -> ${mappedStation} for production_scale`);
     } else if (machineConfig.m === 'plates4') {
       mappedStation = 'P4';
-      console.log(`  → Converting ${machineConfig.m} → ${mappedStation} for production_scale`);
+      console.log(`[INFO] Converting ${machineConfig.m} -> ${mappedStation} for production_scale`);
     }
     
-    console.log('  → Found in config, using m field:', machineConfig.m);
-    console.log('  → Final mapped station:', mappedStation);
+    console.log('[INFO] Found in config, using m field:', machineConfig.m);
+    console.log('[INFO] Final mapped station:', mappedStation);
     return mappedStation;
   }
   
@@ -238,17 +238,17 @@ export function mapMachineToStation(machineName) {
   };
   
   const mappedStation = mapping[machineName] || machineName;
-  console.log('  → Mapped to:', mappedStation);
+  console.log('[INFO] Mapped to:', mappedStation);
   
   return mappedStation;
 }
 
 // เพิ่มฟังก์ชันใหม่สำหรับแปลงชื่อเครื่องเป็น Production Plan format
 export function mapMachineToProductionPlan(machineName) {
-  console.log('🔄 Mapping machine to Production Plan format:', machineName);
+  console.log('[DEBUG] Mapping machine to Production Plan format:', machineName);
   
   // ดึงข้อมูลจาก config file
-  const configPath = path.join(process.cwd(), '..', 'db_instances.config.json');
+  
   const dbInstances = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
   
   // หาเครื่องที่ตรงกับชื่อ
@@ -260,11 +260,11 @@ export function mapMachineToProductionPlan(machineName) {
     if (machineConfig.m.startsWith('C') && machineConfig.m.length === 2) {
       const number = machineConfig.m.substring(1);
       mappedCode = `H${number}`;
-      console.log(`  → Converting ${machineConfig.m} → ${mappedCode}`);
+      console.log(`[INFO] Converting ${machineConfig.m} -> ${mappedCode}`);
     }
     
     const ocpFormat = `OCP ${mappedCode}`;
-    console.log('  → Found in config, Production Plan format:', ocpFormat);
+    console.log('[INFO] Found in config, Production Plan format:', ocpFormat);
     return ocpFormat;
   }
   
@@ -308,22 +308,22 @@ export function mapMachineToProductionPlan(machineName) {
   };
   
   const mappedStation = mapping[machineName] || machineName;
-  console.log('  → Mapped to Production Plan format:', mappedStation);
+  console.log('[INFO] Mapped to Production Plan format:', mappedStation);
   
   return mappedStation;
 }
 
 // แก้ไขฟังก์ชัน checkDbOnline
 export async function checkDbOnline(dbConfig) {
-  console.log(`🔍 Starting status check for ${dbConfig.name} (${dbConfig.host})`);
+  console.log(`[DEBUG] Starting status check for ${dbConfig.name} (${dbConfig.host})`);
   
   // ping host ก่อน
-  console.log(`🔄 About to call pingHost for ${dbConfig.host}`);
+  console.log(`[DEBUG] About to call pingHost for ${dbConfig.host}`);
   const pingResult = await pingHost(dbConfig.host);
-  console.log(`✅ pingHost completed for ${dbConfig.host}:`, pingResult);
+  console.log(`[INFO] pingHost completed for ${dbConfig.host}:`, pingResult);
   
   if (!pingResult.online) {
-    console.error(`❌ Ping failed: ${dbConfig.host} - ${pingResult.reason}`);
+    console.error(`[ERROR] Ping failed: ${dbConfig.host} - ${pingResult.reason}`);
     return { 
       online: false, 
       status: 'machine_offline',
@@ -332,7 +332,7 @@ export async function checkDbOnline(dbConfig) {
   }
   
   // แสดงข้อมูล ping
-  console.log(`📊 Ping result for ${dbConfig.host}: avg=${pingResult.avgTime}ms, variance=${pingResult.variance}ms, status=${pingResult.status}`);
+  console.log(`[INFO] Ping result for ${dbConfig.host}: avg=${pingResult.avgTime}ms, variance=${pingResult.variance}ms, status=${pingResult.status}`);
   
   const config = {
     user: dbConfig.user,
@@ -350,14 +350,14 @@ export async function checkDbOnline(dbConfig) {
   
   let pool;
   try {
-    console.log(`🔌 Connecting to DB: ${dbConfig.name} (${dbConfig.host})`);
+    console.log(`[DEBUG] Connecting to DB: ${dbConfig.name} (${dbConfig.host})`);
     pool = await new sql.ConnectionPool(config).connect();
     await pool.close();
-    console.log(`✅ DB connection successful for ${dbConfig.name}`);
+    console.log(`[INFO] DB connection successful for ${dbConfig.name}`);
     
     // ส่งกลับสถานะตาม ping result
     const finalStatus = pingResult.status;
-    console.log(`🎯 Final status for ${dbConfig.name}: ${finalStatus}`);
+    console.log(`[INFO] Final status for ${dbConfig.name}: ${finalStatus}`);
     
     return { 
       online: true, 
@@ -366,7 +366,7 @@ export async function checkDbOnline(dbConfig) {
       pingVariance: pingResult.variance
     };
   } catch (err) {
-    console.error(`❌ DB connection failed for ${dbConfig.name} (${dbConfig.host}):`, err.message);
+    console.error(`[ERROR] DB connection failed for ${dbConfig.name} (${dbConfig.host}):`, err.message);
     if (pool) await pool.close().catch(() => {});
     
     // ถ้า ping ได้แต่ DB เชื่อมต่อไม่ได้
@@ -381,6 +381,14 @@ export async function checkDbOnline(dbConfig) {
 }
 
 export async function queryA2Rpt(dbConfig, year, month, page = 1, pageSize = 20) {
+  console.log('=== queryA2Rpt ===');
+  console.log('Parameters:', { year, month, page, pageSize });
+  console.log('DB Config:', {
+    host: dbConfig.host,
+    database: dbConfig.database,
+    user: dbConfig.user
+  });
+  
   const config = {
     user: dbConfig.user,
     password: dbConfig.password,
@@ -408,21 +416,41 @@ export async function queryA2Rpt(dbConfig, year, month, page = 1, pageSize = 20)
         [rmd_weight],
         [rmd_remark],
         ROW_NUMBER() OVER (ORDER BY [rmd_date] DESC) as rn
-      FROM [dbo].[vw_a2_rpt]
+      FROM [dbo].[vw_A2_rpt]
       WHERE FORMAT([rmd_date], 'yyyy-MM') = @ref
     ) t
     WHERE rn BETWEEN @start AND @end
   `;
+  
+  console.log('SQL Query:', sqlQuery);
+  console.log('Parameters:', { ref, start: offset + 1, end: offset + pageSize });
+  
   try {
+    console.log('Connecting to database...');
     const pool = await sql.connect(config);
+    console.log('Connected successfully');
+    
+    console.log('Executing query...');
     const result = await pool.request()
       .input('ref', sql.VarChar, ref)
       .input('start', sql.Int, offset + 1)
       .input('end', sql.Int, offset + pageSize)
       .query(sqlQuery);
+    console.log('Query executed successfully');
+    
     await pool.close();
+    console.log('Connection closed');
+    
+    console.log('Result count:', result.recordset.length);
     return result.recordset;
   } catch (err) {
+    console.error('Error in queryA2Rpt:', err.message);
+    console.error('Error details:', {
+      code: err.code,
+      state: err.state,
+      serverName: err.serverName,
+      lineNumber: err.lineNumber
+    });
     throw err;
   }
 }
@@ -448,7 +476,7 @@ export async function queryA2RptSummary(dbConfig, year, month) {
       [rmd_remark], 
       SUM([rmd_qty3]) as sumqty3, 
       SUM([rmd_weight]) as sweight
-    FROM [dbo].[vw_a2_rpt]
+    FROM [dbo].[vw_A2_rpt]
     WHERE FORMAT([rmd_date], 'yyyy-MM') = @ref
     GROUP BY [rmd_size], [rmd_qa_grade], [rmd_remark]
     ORDER BY [rmd_size], [rmd_qa_grade], [rmd_remark]
@@ -481,7 +509,7 @@ export async function queryA2RptSum(dbConfig, year, month) {
   const ref = `${year}-${month.toString().padStart(2, '0')}`;
   const sqlQuery = `
     SELECT SUM([rmd_qty3]) as sQty3, SUM([rmd_weight]) as sweight
-    FROM [dbo].[vw_a2_rpt]
+    FROM [dbo].[vw_A2_rpt]
     WHERE FORMAT([rmd_date], 'yyyy-MM') = @ref
   `;
   try {
@@ -576,7 +604,7 @@ async function getCEOReportConnection() {
 
   let pool;
   try {
-      console.log("🔍 DEBUG: Creating new ConnectionPool for CEO_REPORT...");
+      console.log("DEBUG: Creating new ConnectionPool for CEO_REPORT...");
       // **แก้ไข**: ใช้ ceoConfig ที่หาเจอ
       pool = new sql.ConnectionPool({
           user: ceoConfig.user,
@@ -593,7 +621,7 @@ async function getCEOReportConnection() {
       });
 
       const connection = await pool.connect();
-      console.log("✅ DEBUG: CEO_REPORT ConnectionPool connected successfully.");
+      console.log("DEBUG: CEO_REPORT ConnectionPool connected successfully.");
 
       const dbNameResult = await connection.request().query('SELECT DB_NAME() AS db_name');
       const actualDbName = dbNameResult.recordset[0].db_name;
@@ -603,18 +631,18 @@ async function getCEOReportConnection() {
           throw new Error(`เชื่อมต่อผิด database: ${actualDbName} (ควรเป็น ${ceoConfig.database})`);
       }
       
-      console.log(`✅ DEBUG: Connected to correct database: ${ceoConfig.database}`);
+      console.log(`DEBUG: Connected to correct database: ${ceoConfig.database}`);
       return pool;
 
   } catch (err) {
-      console.error("❌ Error in getCEOReportConnection:", err.message);
+      console.error("Error in getCEOReportConnection:", err.message);
       if (pool) await pool.close().catch(() => {});
       throw err;
   }
 }
 
 export async function queryPlanningData(dbConfig, station, fromDate, toDate) {
-  console.log('🚨🚨🚨 DEBUG: queryPlanningData called with station:', station);
+  console.log('DEBUG: queryPlanningData called with station:', station);
   
   // **แก้ไข**: ใช้ฟังก์ชัน mapper ที่ถูกต้อง
   const mappedStation = mapMachineToProductionPlanFormat(station);
@@ -626,13 +654,13 @@ export async function queryPlanningData(dbConfig, station, fromDate, toDate) {
     AND station = @station
   `;
   
-  console.log('🔍 DEBUG: SQL Query:', sqlQuery);
-  console.log('🔍 DEBUG: Parameters:', { fromDate, toDate, station: mappedStation });
+  console.log('DEBUG: SQL Query:', sqlQuery);
+  console.log('DEBUG: Parameters:', { fromDate, toDate, station: mappedStation });
   
   let pool;
   try {
     pool = await getCEOReportConnection();
-    console.log('🔍 DEBUG: Connection pool connected successfully');
+    console.log('DEBUG: Connection pool connected successfully');
     
     const result = await pool.request()
       .input('fromDate', sql.VarChar, fromDate)
@@ -640,14 +668,14 @@ export async function queryPlanningData(dbConfig, station, fromDate, toDate) {
       .input('station', sql.VarChar, mappedStation)
       .query(sqlQuery);
     
-    console.log('🔍 DEBUG: Query executed successfully, result count:', result.recordset.length);
+    console.log('DEBUG: Query executed successfully, result count:', result.recordset.length);
     return result.recordset;
   } catch (err) {
-    console.error('❌ DEBUG: Query error:', err.message);
+    console.error('DEBUG: Query error:', err.message);
     return [];
   } finally {
     if (pool) {
-      await pool.close().catch(e => console.error('❌ DEBUG: Error closing pool:', e.message));
+      await pool.close().catch(e => console.error('DEBUG: Error closing pool:', e.message));
     }
   }
 }
@@ -656,14 +684,14 @@ export async function queryPlanningData(dbConfig, station, fromDate, toDate) {
 export async function updateProductionPlan(dbConfig, station, fromDate, toDate, shift = "Z", user = "system") {
   // โค้ดใหม่จะบังคับใช้ shift = 'Z' ตอน INSERT ตามที่คุณบอก
   const finalShift = "Z"; 
-  console.log("🔄 Starting updateProductionPlan:", { station, fromDate, toDate, shift: finalShift, user });
+  console.log("Starting updateProductionPlan:", { station, fromDate, toDate, shift: finalShift, user });
 
   let sourcePool = null;
   let ceoReportPool = null;
 
   try {
       // --- ส่วนที่ 1: ดึงข้อมูลจาก Source Database ---
-      console.log(`🔍 Connecting to source database for station: ${station}`);
+      console.log(`Connecting to source database for station: ${station}`);
       
       const sourceConfig = {
           user: dbConfig.user,
@@ -676,9 +704,9 @@ export async function updateProductionPlan(dbConfig, station, fromDate, toDate, 
 
       sourcePool = new sql.ConnectionPool(sourceConfig);
       await sourcePool.connect();
-      console.log("✅ Connected to source database");
+      console.log("Connected to source database");
 
-      console.log("🔄 Step 1: Fetching data from GET_CD3DATA (View)...");
+      console.log("Step 1: Fetching data from GET_CD3DATA (View)...");
 
       // **แก้ไข SQL SELECT ให้ตรงกับโค้ด Access เดิม (มีการ GROUP BY)**
       const sourceQuery = `
@@ -700,17 +728,17 @@ export async function updateProductionPlan(dbConfig, station, fromDate, toDate, 
               machine, doc_date, material, rmd_size, rmd_period
       `;
 
-      console.log('🔍 DEBUG: SQL Query for Source View:', sourceQuery);
+      console.log('DEBUG: SQL Query for Source View:', sourceQuery);
       const sourceResult = await sourcePool.request()
           .input('fromDate', sql.Date, fromDate)
           .input('toDate', sql.Date, toDate)
           .query(sourceQuery);
 
       const recordsToUpdate = sourceResult.recordset;
-      console.log(`✅ Fetched records from source: ${recordsToUpdate.length}`);
+      console.log(`Fetched records from source: ${recordsToUpdate.length}`);
 
       if (recordsToUpdate.length === 0) {
-          console.log("✅ No records to update. Task finished.");
+          console.log("No records to update. Task finished.");
           if (sourcePool && sourcePool.connected) {
               await sourcePool.close();
           }
@@ -718,19 +746,19 @@ export async function updateProductionPlan(dbConfig, station, fromDate, toDate, 
       }
 
       // --- ส่วนที่ 2: เชื่อมต่อ CEO_REPORT ---
-      console.log("🔍 Connecting to CEO_REPORT database...");
+      console.log("Connecting to CEO_REPORT database...");
       ceoReportPool = await getCEOReportConnection();
-      console.log("✅ Connection to CEO_REPORT successful.");
+      console.log("Connection to CEO_REPORT successful.");
 
       // --- ส่วนที่ 3: เริ่ม Transaction ---
       const transaction = new sql.Transaction(ceoReportPool);
       await transaction.begin();
-      console.log("🔄 Step 2: Begin transaction on CEO_REPORT");
+      console.log("Step 2: Begin transaction on CEO_REPORT");
       
       try {
           // **แก้ไข DELETE ให้ตรงกับโค้ด Access เดิม (มีการ UPDATE status ก่อน)**
           const mappedStationForPlan = mapMachineToProductionPlanFormat(station);
-          console.log(`🔄 Updating existing records' status to 'รอตรวจสอบ' for station: ${mappedStationForPlan}`);
+          console.log(`Updating existing records' status to 'รอตรวจสอบ' for station: ${mappedStationForPlan}`);
           
           const updateRequest = new sql.Request(transaction);
           await updateRequest
@@ -743,10 +771,10 @@ export async function updateProductionPlan(dbConfig, station, fromDate, toDate, 
                   SET status = 'รอตรวจสอบ', shift = @shift
                   WHERE station = @station AND CAST(postingdate AS DATE) BETWEEN @fromDate AND @toDate
               `);
-          console.log("✅ Existing records updated.");
+          console.log("Existing records updated.");
 
           // **แก้ไข INSERT ให้ตรงกับโค้ด Access เดิม**
-          console.log(`🔄 Step 3: Inserting ${recordsToUpdate.length} new records...`);
+          console.log(`Step 3: Inserting ${recordsToUpdate.length} new records...`);
           for (const record of recordsToUpdate) {
               const insertRequest = new sql.Request(transaction);
               await insertRequest
@@ -770,19 +798,19 @@ export async function updateProductionPlan(dbConfig, station, fromDate, toDate, 
           }
           
           await transaction.commit();
-          console.log("✅ Transaction committed successfully!");
+          console.log("Transaction committed successfully!");
           
           return { message: `อัปเดตข้อมูลสำเร็จ ${recordsToUpdate.length} รายการ` };
 
       } catch (err) {
-          console.error("❌ Error during transaction, rolling back...", err);
+          console.error("Error during transaction, rolling back...", err);
           await transaction.rollback();
-          console.log("🔄 Transaction rolled back.");
+          console.log("Transaction rolled back.");
           throw err;
       }
 
   } catch (error) {
-      console.error(`❌ Fatal Error in updateProductionPlan: ${error.message}`);
+      console.error(`Fatal Error in updateProductionPlan: ${error.message}`);
       throw error;
   } finally {
       if (sourcePool && sourcePool.connected) await sourcePool.close();

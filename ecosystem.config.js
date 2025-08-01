@@ -9,11 +9,11 @@ module.exports = {
       max_memory_restart: '1G',
       env: {
         NODE_ENV: 'production',
-        PORT: 4000
+        PORT: 4001 // เปลี่ยนจาก 4000 เป็น 4001
       },
       env_production: {
         NODE_ENV: 'production',
-        PORT: 4000
+        PORT: 4001 // เปลี่ยนจาก 4000 เป็น 4001
       },
       error_file: './logs/dbweb-backend-error.log',
       out_file: './logs/dbweb-backend-out.log',

@@ -64,10 +64,16 @@ function App() {
 
   const handleExport = async () => {
     try {
-      exportA2RptExcel({ name: selected, year, month });
       setSnackbar({ open: true, message: 'กำลังดาวน์โหลดไฟล์ Excel...', severity: 'info' });
+      await exportA2RptExcel({ name: selected, year, month });
+      setSnackbar({ open: true, message: 'ดาวน์โหลดไฟล์ Excel สำเร็จ', severity: 'success' });
     } catch (e) {
-      setSnackbar({ open: true, message: 'Export ล้มเหลว', severity: 'error' });
+      console.error('Export error:', e);
+      setSnackbar({ 
+        open: true, 
+        message: e.message || 'Export ล้มเหลว', 
+        severity: 'error' 
+      });
     }
   };
 
