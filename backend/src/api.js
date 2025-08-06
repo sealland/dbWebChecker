@@ -8,6 +8,33 @@ import axios from 'axios';
 
 const router = express.Router();
 
+// เพิ่มฟังก์ชัน helper สำหรับจัดการ connection
+const executeQuery = async (config, query, params = {}) => {
+  let pool = null;
+  try {
+    pool = new sql.ConnectionPool(config);
+    await pool.connect();
+    
+    const request = pool.request();
+    
+    // เพิ่ม parameters
+    Object.keys(params).forEach(key => {
+      request.input(key, params[key]);
+    });
+    
+    const result = await request.query(query);
+    return result;
+  } finally {
+    if (pool) {
+      try {
+        await pool.close();
+      } catch (error) {
+        console.error('Error closing pool:', error);
+      }
+    }
+  }
+};
+
 // GET /api/instances - รายชื่อเครื่องและสถานะออนไลน์
 router.get('/instances', async (req, res) => {
   const dbs = getAllDbConfigs();
@@ -109,45 +136,30 @@ router.get('/instances/finish-goods', async (req, res) => {
   const { name } = req.query;
   if (!name) return res.status(400).json({ error: 'ต้องระบุ name' });
   
-  // ไม่ต้องใช้ getDbConfigByName เพราะเราจะใช้ hardcoded config
-  // const dbConfig = getDbConfigByName(name);
-  // if (!dbConfig) return res.status(404).json({ error: 'ไม่พบเครื่องที่ระบุ' });
-  
   try {
-    // ใช้ database PP ที่ 192.168.100.222
-    const ppConfig = {
-      user: "sa",
-      password: "",
-      server: "192.168.100.222",
-      database: "PP",
-      port: 1433,
-      options: {
-        encrypt: false,
-        trustServerCertificate: true,
-        connectTimeout: 5000,
-        requestTimeout: 10000
-      },
-      pool: { max: 1, min: 0, idleTimeoutMillis: 3000 }
-    };
-    
-    console.log('🔍 PP Config:', {
-      server: ppConfig.server,
-      database: ppConfig.database,
-      user: ppConfig.user
-    });
-    
-    // แปลงชื่อเครื่องเป็น station code
     const mappedStation = mapMachineToStation(name);
     console.log('🔍 === /api/instances/finish-goods ===');
     console.log('🔍 Request query:', req.query);
     console.log('🔍 Mapped station:', name, '→', mappedStation);
-    console.log('🔍 Using rmd_station for query');
+    
+    const ppConfig = {
+      user: "sa",
+      password: "",
+      server: "192.168.100.222",
+      database: "PP_OCP",
+      port: 1433,
+      options: {
+        encrypt: false,
+        trustServerCertificate: true,
+        connectTimeout: 10000,
+        requestTimeout: 15000
+      }
+    };
     
     const sqlQuery = `
-      SELECT TOP 1 [rmd_size], [rmd_date]
-      FROM tbl_production_scale
-      WHERE rmd_plant = 'OCP' 
-      AND [rmd_station] = @station
+      SELECT TOP 1 rmd_size, rmd_date
+      FROM [PP_OCP].[dbo].[rmd]
+      WHERE [rmd_station] = @station
       AND [rmd_qa_grade] IN ('A1', 'A2')
       ORDER BY rmd_Date DESC, rmd_qty2 DESC
     `;
@@ -155,18 +167,7 @@ router.get('/instances/finish-goods', async (req, res) => {
     console.log('🔍 SQL Query:', sqlQuery);
     console.log('🔍 Parameters:', { station: mappedStation });
     
-    console.log('🔍 Connecting to database...');
-    const pool = await sql.connect(ppConfig);
-    console.log('✅ Connected successfully');
-    
-    console.log('🔍 Executing query...');
-    const result = await pool.request()
-      .input('station', sql.VarChar, mappedStation)
-      .query(sqlQuery);
-    console.log('✅ Query executed successfully');
-    
-    await pool.close();
-    console.log('✅ Connection closed');
+    const result = await executeQuery(ppConfig, sqlQuery, { station: mappedStation });
     
     const size = result.recordset.length > 0 ? result.recordset[0].rmd_size : null;
     const lastProductionDate = result.recordset.length > 0 ? result.recordset[0].rmd_date : null;
@@ -179,25 +180,9 @@ router.get('/instances/finish-goods', async (req, res) => {
     });
   } catch (err) {
     console.error('❌ Error fetching finish goods:', err.message);
-    console.error('❌ Error type:', err.constructor.name);
-    console.error('❌ Error details:', {
-      code: err.code,
-      state: err.state,
-      serverName: err.serverName,
-      lineNumber: err.lineNumber,
-      stack: err.stack
-    });
-    
-    // ถ้าเป็น connection error ให้ return ข้อมูลว่าง
-    if (err.message.includes('aborted') || err.message.includes('timeout')) {
-      console.log('⚠️ Connection timeout/aborted, returning empty data');
-      return res.json({ size: null });
-    }
-    
     res.status(500).json({ 
       error: 'เกิดข้อผิดพลาดในการดึงข้อมูล finish goods', 
-      detail: err.message,
-      code: err.code
+      detail: err.message
     });
   }
 });
@@ -207,12 +192,7 @@ router.get('/instances/production-plan', async (req, res) => {
   const { name } = req.query;
   if (!name) return res.status(400).json({ error: 'ต้องระบุ name' });
   
-  // ไม่ต้องใช้ getDbConfigByName เพราะเราจะใช้ hardcoded config
-  // const dbConfig = getDbConfigByName(name);
-  // if (!dbConfig) return res.status(404).json({ error: 'ไม่พบเครื่องที่ระบุ' });
-  
   try {
-    // ใช้ CEO_REPORT database
     const ceoReportConfig = {
       user: "sa",
       password: "",
@@ -224,21 +204,11 @@ router.get('/instances/production-plan', async (req, res) => {
         trustServerCertificate: true,
         connectTimeout: 10000,
         requestTimeout: 15000
-      },
-      pool: { 
-        max: 10,         // เพิ่มจาก 5 เป็น 10
-        min: 0, 
-        idleTimeoutMillis: 10000,     // เพิ่มจาก 5000
-        acquireTimeoutMillis: 15000,  // เพิ่มจาก 10000
-        createTimeoutMillis: 15000,   // เพิ่มจาก 10000
-        destroyTimeoutMillis: 10000,  // เพิ่มจาก 5000
-        reapIntervalMillis: 2000,     // เพิ่มจาก 1000
-        createRetryIntervalMillis: 500 // เพิ่มจาก 200
       }
     };
     
     const mappedStation = mapMachineToProductionPlan(name);
-    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+    const today = new Date().toISOString().split('T')[0];
     console.log('🔍 === /api/instances/production-plan ===');
     console.log('🔍 Request query:', req.query);
     console.log('🔍 Mapped station:', name, '→', mappedStation);
@@ -247,30 +217,23 @@ router.get('/instances/production-plan', async (req, res) => {
       SELECT size 
       FROM [CEO_REPORT].[dbo].[production_plan]
       WHERE station = @station 
-      AND postingdate = @today
+      AND date = @today
     `;
     
-    const pool = await sql.connect(ceoReportConfig);
-    const result = await pool.request()
-      .input('station', sql.VarChar, mappedStation)
-      .input('today', sql.VarChar, today)
-      .query(sqlQuery);
-    await pool.close();
-    
-    const maktx = result.recordset.length > 0 ? result.recordset[0].size : null;
-    res.json({ maktx });
-  } catch (err) {
-    console.error('Error fetching production plan:', err.message);
-    console.error('Error details:', {
-      code: err.code,
-      state: err.state,
-      serverName: err.serverName,
-      lineNumber: err.lineNumber
+    const result = await executeQuery(ceoReportConfig, sqlQuery, { 
+      station: mappedStation, 
+      today: today 
     });
+    
+    const productionPlan = result.recordset.length > 0 ? result.recordset[0].size : null;
+    console.log('🔍 Query result:', result.recordset);
+    console.log('🔍 Final production plan value:', productionPlan);
+    res.json({ productionPlan });
+  } catch (err) {
+    console.error('❌ Error fetching production plan:', err.message);
     res.status(500).json({ 
-      error: 'เกิดข้อผิดพลาดในการดึงข้อมูลแผนผลิต', 
-      detail: err.message,
-      code: err.code
+      error: 'เกิดข้อผิดพลาดในการดึงข้อมูล production plan', 
+      detail: err.message
     });
   }
 });

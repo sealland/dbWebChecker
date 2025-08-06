@@ -143,6 +143,93 @@ function App() {
   const [loadingStatus, setLoadingStatus] = useState({}); // สถานะการเช็คสถานะเครื่อง
   const [loadingProduction, setLoadingProduction] = useState({}); // สถานะการดึงข้อมูลผลิต
   const [checkingAllStatus, setCheckingAllStatus] = useState(false); // สถานะการเช็คสถานะเครื่องทั้งหมด
+  
+  // เพิ่ม state สำหรับ user role
+  const [userRole, setUserRole] = useState(null);
+  const [userLoading, setUserLoading] = useState(false);
+
+  // ฟังก์ชันตรวจสอบ Role ของ currentUser
+  const checkUserRole = async (currentUser) => {
+    if (!currentUser) return;
+    
+    // แปลง currentUser เป็นตัวเล็ก
+    const normalizedUser = currentUser.toLowerCase().trim();
+    console.log('🔍 Normalized user:', normalizedUser);
+    
+    setUserLoading(true);
+    try {
+      // เรียก API ไปยัง backend เพื่อตรวจสอบ user role
+      const response = await axios.post(getApiUrl('/api/auth/check-role'), {
+        currentUser: normalizedUser, // ส่งค่า normalized
+        dbConfig: {
+          host: '192.168.201.115',
+          database: 'PP_OCP',
+          table: 'tblUsers',
+          user: 'sa',
+          password: 'gs]HdmiyrpN2523'
+        }
+      });
+      
+      console.log('🔍 API Response:', response.data);
+      
+      if (response.data.success) {
+        setUserRole(response.data.userLevel);
+        console.log('👤 User role loaded:', response.data.userLevel);
+      } else {
+        console.error('❌ Failed to load user role:', response.data.message);
+        setUserRole(null);
+      }
+    } catch (error) {
+      console.error('❌ Error checking user role:', error);
+      setUserRole(null);
+    } finally {
+      setUserLoading(false);
+    }
+  };
+
+  // ฟังก์ชันตรวจสอบว่า user มีสิทธิ์ดูเมนูหรือไม่
+  const canViewMenu = (menuType) => {
+    console.log('🔍 Checking menu access:', { menuType, userRole });
+    
+    if (!userRole) {
+      console.log('❌ No user role found');
+      return false;
+    }
+    
+    // แปลง userRole เป็นตัวเล็กเพื่อเปรียบเทียบ
+    const normalizedRole = userRole.toLowerCase();
+    console.log('🔍 Normalized role:', normalizedRole);
+    
+    // admin และ dev สามารถดูเมนูทั้งหมด
+    if (normalizedRole === 'admin' || normalizedRole === 'dev') {
+      console.log('✅ User has admin/dev access');
+      return true;
+    }
+    
+    // สำหรับ user level อื่นๆ สามารถกำหนดสิทธิ์เฉพาะได้
+    switch (menuType) {
+      case 'compare':
+        const canCompare = normalizedRole === 'admin' || normalizedRole === 'dev';
+        console.log('🔍 Compare menu access:', canCompare);
+        return canCompare;
+      case 'settings':
+        const canSettings = normalizedRole === 'admin' || normalizedRole === 'dev';
+        console.log('🔍 Settings menu access:', canSettings);
+        return canSettings;
+      default:
+        console.log('❌ Unknown menu type:', menuType);
+        return false;
+    }
+  };
+
+  // ตรวจสอบ currentUser เมื่อ component mount
+  useEffect(() => {
+    const currentUser = query.get('currentUser');
+    if (currentUser) {
+      console.log('👤 Current user from URL:', currentUser);
+      checkUserRole(currentUser);
+    }
+  }, [query]);
 
   // แก้ไขฟังก์ชัน fetchInstances
   const fetchInstances = async (showLoading = true) => {
@@ -706,6 +793,92 @@ function App() {
     </Drawer>
   );
 
+  // แสดงข้อมูล User Role
+  const DrawerContent = (
+    <Box sx={{ p: 3 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+        <IconButton onClick={handleDrawerClose}>
+          <MenuIcon />
+        </IconButton>
+        <Typography variant="h6" fontWeight={700} sx={{ ml: 1 }}>
+          {selected?.name}
+        </Typography>
+      </Box>
+      <Divider sx={{ mb: 2 }} />
+      
+      {/* แสดงข้อมูล User Role */}
+      {userLoading ? (
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+          <CircularProgress size={20} sx={{ mr: 1 }} />
+          <Typography variant="body2" color="text.secondary">
+            กำลังตรวจสอบสิทธิ์...
+          </Typography>
+        </Box>
+      ) : userRole ? (
+        <Box sx={{ mb: 2, p: 2, bgcolor: 'primary.light', borderRadius: 2 }}>
+          <Typography variant="body2" color="primary.contrastText" fontWeight={600}>
+            สิทธิ์: {userRole === 'admin' ? 'ผู้ดูแลระบบ' : userRole === 'dev' ? 'นักพัฒนา' : userRole}
+          </Typography>
+          <Typography variant="caption" color="primary.contrastText" sx={{ opacity: 0.8 }}>
+            Raw value: {userRole}
+          </Typography>
+        </Box>
+      ) : (
+        <Box sx={{ mb: 2, p: 2, bgcolor: 'error.light', borderRadius: 2 }}>
+          <Typography variant="body2" color="error.contrastText" fontWeight={600}>
+            ไม่พบสิทธิ์ผู้ใช้
+          </Typography>
+        </Box>
+      )}
+      
+      {selected && (
+        <>
+          <Typography variant="body2" color="text.secondary" gutterBottom>
+            {selected.host} | DB: {selected.database}
+          </Typography>
+          <Box sx={{ my: 2 }}>
+            <StatusAvatar online={selected.online} />
+          </Box>
+          <Typography variant="subtitle1" fontWeight={600} sx={{ mt: 2 }}>
+            Process
+          </Typography>
+          <List>
+            {/* เมนูเปรียบเทียบข้อมูล - แสดงเฉพาะ admin และ dev */}
+            {canViewMenu('compare') && (
+              <ListItem button onClick={openCompareDrawer} sx={{ borderRadius: 2 }}>
+                <ListItemIcon>
+                  <SettingsIcon />
+                </ListItemIcon>
+                <ListItemText primary="เปรียบเทียบข้อมูล" />
+              </ListItem>
+            )}
+            
+            {/* เพิ่มเมนูอื่นๆ ตามสิทธิ์ */}
+            {canViewMenu('settings') && (
+              <ListItem button sx={{ borderRadius: 2 }}>
+                <ListItemIcon>
+                  <SettingsIcon />
+                </ListItemIcon>
+                <ListItemText primary="ตั้งค่าระบบ" />
+              </ListItem>
+            )}
+            
+            {/* แสดงข้อความเมื่อไม่มีสิทธิ์ */}
+            {!canViewMenu('compare') && !canViewMenu('settings') && (
+              <ListItem>
+                <ListItemText 
+                  primary="ไม่มีสิทธิ์เข้าถึงเมนู" 
+                  secondary={`สิทธิ์ปัจจุบัน: ${userRole || 'ไม่พบ'}`}
+                  sx={{ color: 'text.secondary' }}
+                />
+              </ListItem>
+            )}
+          </List>
+        </>
+      )}
+    </Box>
+  );
+
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'transparent', position: 'relative' }}>
       {/* Gradient background */}
@@ -1137,39 +1310,7 @@ function App() {
         onClose={handleDrawerClose}
         PaperProps={{ sx: { width: { xs: 280, sm: 340 }, borderTopLeftRadius: 24, borderBottomLeftRadius: 24, bgcolor: '#f7fafc' } }}
       >
-        <Box sx={{ p: 3 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-            <IconButton onClick={handleDrawerClose}>
-              <MenuIcon />
-            </IconButton>
-            <Typography variant="h6" fontWeight={700} sx={{ ml: 1 }}>
-              {selected?.name}
-            </Typography>
-          </Box>
-          <Divider sx={{ mb: 2 }} />
-          {selected && (
-            <>
-              <Typography variant="body2" color="text.secondary" gutterBottom>
-                {selected.host} | DB: {selected.database}
-              </Typography>
-              <Box sx={{ my: 2 }}>
-                <StatusAvatar online={selected.online} />
-              </Box>
-              <Typography variant="subtitle1" fontWeight={600} sx={{ mt: 2 }}>
-                Process
-              </Typography>
-              <List>
-                <ListItem button onClick={openCompareDrawer} sx={{ borderRadius: 2 }}>
-                  <ListItemIcon>
-                    <SettingsIcon />
-                  </ListItemIcon>
-                  <ListItemText primary="เปรียบเทียบข้อมูล" />
-                </ListItem>
-                {/* เพิ่ม process อื่นๆ ในอนาคตได้ที่นี่ */}
-              </List>
-            </>
-          )}
-        </Box>
+        {DrawerContent}
       </Drawer>
       {CompareDrawer}
     </Box>

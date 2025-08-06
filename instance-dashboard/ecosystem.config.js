@@ -9,6 +9,7 @@ module.exports = {
       max_memory_restart: '512M',
       env: {
         NODE_ENV: 'production',
+        REACT_APP_API_BASE_URL: 'http://localhost:4001',
         PORT: 4002,
         PM2_SERVE_PATH: './build',
         PM2_SERVE_PORT: 4002,
@@ -17,6 +18,7 @@ module.exports = {
       },
       env_production: {
         NODE_ENV: 'production',
+        REACT_APP_API_BASE_URL: 'http://localhost:4001',
         PORT: 4002,
         PM2_SERVE_PATH: './build',
         PM2_SERVE_PORT: 4002,

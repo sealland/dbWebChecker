@@ -1,0 +1,167 @@
+[33mcommit 38651c5d3ac63523a7e7ab89aa0f7b23ae66d195[m[33m ([m[1;31morigin/cursor/update-finish-good-data-retrieval-from-new-source-4eea[m[33m)[m
+Author: sealland <oatrilakkuma@gmail.com>
+Date:   Fri Aug 1 14:34:20 2025 +0700
+
+    final version
+
+[1mdiff --git a/instance-dashboard/ecosystem.config.js b/instance-dashboard/ecosystem.config.js[m
+[1mnew file mode 100644[m
+[1mindex 0000000..1f2e433[m
+[1m--- /dev/null[m
+[1m+++ b/instance-dashboard/ecosystem.config.js[m
+[36m@@ -0,0 +1,32 @@[m
+[32m+[m[32mmodule.exports = {[m
+[32m+[m[32m  apps: [[m
+[32m+[m[32m    {[m
+[32m+[m[32m      name: 'instance-dashboard',[m
+[32m+[m[32m      script: 'serve',[m
+[32m+[m[32m      instances: 1,[m
+[32m+[m[32m      autorestart: true,[m
+[32m+[m[32m      watch: false,[m
+[32m+[m[32m      max_memory_restart: '512M',[m
+[32m+[m[32m      env: {[m
+[32m+[m[32m        NODE_ENV: 'production',[m
+[32m+[m[32m        PORT: 4002,[m
+[32m+[m[32m        PM2_SERVE_PATH: './build',[m
+[32m+[m[32m        PM2_SERVE_PORT: 4002,[m
+[32m+[m[32m        PM2_SERVE_SPA: 'true',[m
+[32m+[m[32m        PM2_SERVE_HOMEPAGE: '/index.html'[m
+[32m+[m[32m      },[m
+[32m+[m[32m      env_production: {[m
+[32m+[m[32m        NODE_ENV: 'production',[m
+[32m+[m[32m        PORT: 4002,[m
+[32m+[m[32m        PM2_SERVE_PATH: './build',[m
+[32m+[m[32m        PM2_SERVE_PORT: 4002,[m
+[32m+[m[32m        PM2_SERVE_SPA: 'true',[m
+[32m+[m[32m        PM2_SERVE_HOMEPAGE: '/index.html'[m
+[32m+[m[32m      },[m
+[32m+[m[32m      error_file: './logs/instance-dashboard-error.log',[m
+[32m+[m[32m      out_file: './logs/instance-dashboard-out.log',[m
+[32m+[m[32m      log_file: './logs/instance-dashboard-combined.log',[m
+[32m+[m[32m      time: true[m
+[32m+[m[32m    }[m
+[32m+[m[32m  ][m
+[32m+[m[32m};[m[41m [m
+\ No newline at end of file[m
+[1mdiff --git a/instance-dashboard/package.json b/instance-dashboard/package.json[m
+[1mindex 05dac0a..1ffa2dc 100644[m
+[1m--- a/instance-dashboard/package.json[m
+[1m+++ b/instance-dashboard/package.json[m
+[36m@@ -1,5 +1,6 @@[m
+ {[m
+   "name": "instance-dashboard",[m
+[32m+[m[32m  "homepage": "/dashboard",[m
+   "version": "0.1.0",[m
+   "private": true,[m
+   "dependencies": {[m
+[36m@@ -13,13 +14,15 @@[m
+     "react-dom": "^19.1.1",[m
+     "react-router-dom": "^7.7.1",[m
+     "react-scripts": "5.0.1",[m
+[32m+[m[32m    "serve": "^14.2.1",[m
+     "web-vitals": "^5.0.3"[m
+   },[m
+   "scripts": {[m
+     "start": "react-scripts start",[m
+     "build": "react-scripts build",[m
+     "test": "react-scripts test",[m
+[31m-    "eject": "react-scripts eject"[m
+[32m+[m[32m    "eject": "react-scripts eject",[m
+[32m+[m[32m    "serve": "serve -s build -l 4002"[m
+   },[m
+   "eslintConfig": {[m
+     "extends": [[m
+[1mdiff --git a/instance-dashboard/public/_redirects b/instance-dashboard/public/_redirects[m
+[1mnew file mode 100644[m
+[1mindex 0000000..a0333dd[m
+[1m--- /dev/null[m
+[1m+++ b/instance-dashboard/public/_redirects[m
+[36m@@ -0,0 +1 @@[m
+[32m+[m[32m/*    /index.html   200[m[41m [m
+\ No newline at end of file[m
+[1mdiff --git a/instance-dashboard/public/web.config b/instance-dashboard/public/web.config[m
+[1mnew file mode 100644[m
+[1mindex 0000000..f3ea98b[m
+[1m--- /dev/null[m
+[1m+++ b/instance-dashboard/public/web.config[m
+[36m@@ -0,0 +1,39 @@[m
+[32m+[m[32m<?xml version="1.0" encoding="UTF-8"?>[m
+[32m+[m[32m<configuration>[m
+[32m+[m[32m  <system.webServer>[m
+[32m+[m[32m    <rewrite>[m
+[32m+[m[32m      <rules>[m
+[32m+[m[32m        <!-- API Proxy Rule - ส่ง API requests ไปยัง backend server -->[m
+[32m+[m[32m        <rule name="API Proxy" stopProcessing="true">[m
+[32m+[m[32m          <match url="^api/(.*)" />[m
+[32m+[m[32m          <action type="Rewrite" url="http://localhost:4001/api/{R:1}" />[m
+[32m+[m[32m        </rule>[m
+[32m+[m[41m        [m
+[32m+[m[32m        <!-- React Router Rule - ส่ง requests อื่นๆ ไปยัง index.html -->[m
+[32m+[m[32m        <rule name="React Routes" stopProcessing="true">[m
+[32m+[m[32m          <match url=".*" />[m
+[32m+[m[32m          <conditions logicalGrouping="MatchAll">[m
+[32m+[m[32m            <add input="{REQUEST_FILENAME}" matchType="IsFile" negate="true" />[m
+[32m+[m[32m            <add input="{REQUEST_FILENAME}" matchType="IsDirectory" negate="true" />[m
+[32m+[m[32m            <add input="{REQUEST_URI}" pattern="^/(api)" negate="true" />[m
+[32m+[m[32m          </conditions>[m
+[32m+[m[32m          <action type="Rewrite" url="/" />[m
+[32m+[m[32m        </rule>[m
+[32m+[m[32m      </rules>[m
+[32m+[m[32m    </rewrite>[m
+[32m+[m[41m    [m
+[32m+[m[32m    <!-- Static file caching -->[m
+[32m+[m[32m    <staticContent>[m
+[32m+[m[32m      <clientCache cacheControlMode="UseMaxAge" cacheControlMaxAge="7.00:00:00" />[m
+[32m+[m[32m    </staticContent>[m
+[32m+[m[41m    [m
+[32m+[m[32m    <!-- MIME types for React build files -->[m
+[32m+[m[32m    <httpProtocol>[m
+[32m+[m[32m      <customHeaders>[m
+[32m+[m[32m        <add name="X-Content-Type-Options" value="nosniff" />[m
+[32m+[m[32m        <add name="X-Frame-Options" value="DENY" />[m
+[32m+[m[32m        <add name="X-XSS-Protection" value="1; mode=block" />[m
+[32m+[m[32m      </customHeaders>[m
+[32m+[m[32m    </httpProtocol>[m
+[32m+[m[32m  </system.webServer>[m
+[32m+[m[32m</configuration>[m[41m [m
+\ No newline at end of file[m
+[1mdiff --git a/instance-dashboard/src/App.js b/instance-dashboard/src/App.js[m
+[1mindex 155d238..8f50db2 100644[m
+[1m--- a/instance-dashboard/src/App.js[m
+[1m+++ b/instance-dashboard/src/App.js[m
+[36m@@ -1,5 +1,6 @@[m
+ import React, { useEffect, useState, useMemo, useRef } from 'react';[m
+ import axios from 'axios';[m
+[32m+[m[32mimport { getApiUrl, getApiEndpoints } from './config';[m
+ import {[m
+   Box,[m
+   Grid,[m
+[36m@@ -40,7 +41,9 @@[m [mimport GetAppIcon from '@mui/icons-material/GetApp';[m
+ import WifiIcon from '@mui/icons-material/Wifi';[m
+ import { useLocation } from 'react-router-dom';[m
+ [m
+[31m-const API_URL = 'http://localhost:4001/api/instances';[m
+[32m+[m[32m// ใช้ API endpoints จาก config[m
+[32m+[m[32mconst endpoints = getApiEndpoints();[m
+[32m+[m[32mconst API_URL = getApiUrl(endpoints.instances);[m
+ const REFRESH_INTERVAL = 300000; // 5 นาที (5 * 60 * 1000 = 300000 ms)[m
+ [m
+ function StatusAvatar({ online }) {[m
+[36m@@ -139,6 +142,7 @@[m [mfunction App() {[m
+   const [lastFetchTime, setLastFetchTime] = useState({}); // เวลาที่เรียก API ล่าสุด[m
+   const [loadingStatus, setLoadingStatus] = useState({}); // สถานะการเช็คสถานะเครื่อง[m
+   const [loadingProduction, setLoadingProduction] = useState({}); // สถานะการดึงข้อมูลผลิต[m
+[32m+[m[32m  const [checkingAllStatus, setCheckingAllStatus] = useState(false); // สถานะการเช็คสถานะเครื่องทั้งหมด[m
+ [m
+   // แก้ไขฟังก์ชัน fetchInstances[m
+   const fetchInstances = async (showLoading = true) => {[m
+[36m@@ -158,7 +162,11 @@[m [mfunction App() {[m
+       setInstances(instancesWithStatus);[m
+       setLastUpdate(new Date());[m
+       [m
+[31m-      // ดึงข้อมูลผลิตล่าสุดสำหรับทุกเครื่องอัตโนมัติ (เพิ่ม delay)[m
+[32m+[m[32m      // เช็คสถานะเครื่องทันทีหลังจากโหลดรายชื่อ[m
+[32m+[m[32m      console.log('🔍 Checking machine status for all instances...');[m
+[32m+[m[32m      await checkAllMachineStatus(instancesWithStatus);[m
+[32m+[m[41m      [m
+[32m+[m[32m      // ดึงข้อมูลผลิตล่าสุดสำหรับทุกเครื่องอัต�

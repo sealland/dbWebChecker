@@ -2,9 +2,10 @@ import express from 'express';
 import cors from 'cors';
 import bodyParser from 'body-parser';
 import apiRouter from './api.js';
+import authRoutes from './routes/auth.js'; // เปลี่ยนจาก require เป็น import
 
 const app = express();
-const PORT = process.env.PORT || 4001; // เปลี่ยนจาก 4000 เป็น 4001
+const PORT = process.env.PORT || 4001;
 
 // CORS configuration
 app.use(cors({
@@ -12,12 +13,12 @@ app.use(cors({
     'http://localhost:3000', 
     'http://localhost:3001',
     'http://localhost:4000',
-    'http://localhost:4001', // เพิ่ม port ใหม่
+    'http://localhost:4001',
     'https://whs.zubbsteel.com',
     'http://192.168.132.7:3000',
     'http://192.168.132.7:3001',
     'http://192.168.132.7:4000',
-    'http://192.168.132.7:4001' // เพิ่ม port ใหม่
+    'http://192.168.132.7:4001'
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -30,12 +31,11 @@ app.use(bodyParser.urlencoded({ extended: true, limit: '10mb' }));
 
 // API routes
 app.use('/api', apiRouter);
+app.use('/api/auth', authRoutes);
 
 app.get('/', (req, res) => {
   res.send('DB Web Checker Backend API');
 });
-
-// TODO: เพิ่ม API สำหรับเช็คสถานะ, ดึงข้อมูล, export Excel
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
