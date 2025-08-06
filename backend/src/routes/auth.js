@@ -18,7 +18,7 @@ router.post('/check-role', async (req, res) => {
   let pool = null;
   
   try {
-    // สร้าง connection config
+    // สร้าง connection config 4
     const config = {
       user: dbConfig.user,
       password: dbConfig.password,
