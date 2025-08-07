@@ -29,9 +29,10 @@ import {
   Paper,
   Button,
   TextField,
-  Modal
+  Modal,
+  Backdrop,
+  Fade
 } from '@mui/material';
-import LocationOnIcon from '@mui/icons-material/LocationOn';
 import SettingsIcon from '@mui/icons-material/Settings';
 import PowerSettingsNewIcon from '@mui/icons-material/PowerSettingsNew';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -41,8 +42,9 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import GetAppIcon from '@mui/icons-material/GetApp';
 import WifiIcon from '@mui/icons-material/Wifi';
+import LocationOnIcon from '@mui/icons-material/LocationOn'; // Added import for LocationOnIcon
 import { useLocation } from 'react-router-dom';
-import LocationManagement from './components/LocationManagement.js';
+import LocationManagement from './components/LocationManagement'; // Added import for LocationManagement
 
 // ใช้ API endpoints จาก config
 const endpoints = getApiEndpoints();
@@ -135,7 +137,6 @@ function App() {
   const timerRef = useRef();
   const query = useQuery();
   const [compareOpen, setCompareOpen] = useState(false);
-  const [locationManagementOpen, setLocationManagementOpen] = useState(false);
   const [compareDates, setCompareDates] = useState({ from: '', to: '' });
   const [stationData, setStationData] = useState([]); // ข้อมูลจาก Station
   const [planData, setPlanData] = useState([]); // ข้อมูลจาก Planning
@@ -151,6 +152,7 @@ function App() {
   // เพิ่ม state สำหรับ user role
   const [userRole, setUserRole] = useState(null);
   const [userLoading, setUserLoading] = useState(false);
+  const [locationManagementOpen, setLocationManagementOpen] = useState(false);
 
   // ฟังก์ชันตรวจสอบ Role ของ currentUser
   const checkUserRole = async (currentUser) => {
@@ -221,7 +223,9 @@ function App() {
         console.log('🔍 Settings menu access:', canSettings);
         return canSettings;
       case 'location':
-        return normalizedRole === 'admin' || normalizedRole === 'dev';
+        const canLocation = normalizedRole === 'admin' || normalizedRole === 'dev';
+        console.log('🔍 Location menu access:', canLocation);
+        return canLocation;
       default:
         console.log('❌ Unknown menu type:', menuType);
         return false;
@@ -859,6 +863,7 @@ function App() {
               </ListItem>
             )}
 
+            {/* เมนูเพิ่ม Location */}
             {canViewMenu('location') && (
               <ListItem button onClick={() => setLocationManagementOpen(true)} sx={{ borderRadius: 2 }}>
                 <ListItemIcon>
@@ -867,8 +872,8 @@ function App() {
                 <ListItemText primary="เพิ่ม Location" />
               </ListItem>
             )}
-            
-            {/* เพิ่มเมนูอื่นๆ ตามสิทธิ์ */}
+
+            {/* เมนูตั้งค่าระบบ */}
             {canViewMenu('settings') && (
               <ListItem button sx={{ borderRadius: 2 }}>
                 <ListItemIcon>
@@ -877,18 +882,22 @@ function App() {
                 <ListItemText primary="ตั้งค่าระบบ" />
               </ListItem>
             )}
-            
+
             {/* แสดงข้อความเมื่อไม่มีสิทธิ์ */}
             {!canViewMenu('compare') && !canViewMenu('settings') && !canViewMenu('location') && (
               <ListItem>
-                <ListItemText
-                  primary="ไม่มีสิทธิ์เข้าถึงเมนู"
+                <ListItemText 
+                  primary="ไม่มีสิทธิ์เข้าถึงเมนู" 
                   secondary={`สิทธิ์ปัจจุบัน: ${userRole || 'ไม่พบ'}`}
                   sx={{ color: 'text.secondary' }}
                 />
               </ListItem>
             )}
           </List>
+          {/* ลบ LocationManagement ออกจาก DrawerContent ตรงนี้ */}
+          {/* <Box sx={{ mt: 1 }}>
+            <LocationManagement machine={selected?.name} compact />
+          </Box> */}
         </>
       )}
     </Box>
@@ -1327,29 +1336,44 @@ function App() {
       >
         {DrawerContent}
       </Drawer>
-      {CompareDrawer}
-
       <Modal
         open={locationManagementOpen}
         onClose={() => setLocationManagementOpen(false)}
         aria-labelledby="location-management-modal-title"
         aria-describedby="location-management-modal-description"
+        closeAfterTransition
+        slots={{ backdrop: Backdrop }}
+        slotProps={{
+          backdrop: {
+            timeout: 300,
+          },
+        }}
       >
-        <Box sx={{
-          position: 'absolute',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          width: '80vw',
-          bgcolor: 'background.paper',
-          boxShadow: 24,
-          p: 4,
-          borderRadius: 2,
-          outline: 'none'
-        }}>
-          <LocationManagement />
-        </Box>
+        <Fade in={locationManagementOpen}>
+          <Box
+            sx={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              width: { xs: '95vw', sm: 600, md: 700 },
+              maxWidth: '98vw',
+              maxHeight: { xs: '90vh', sm: 600, md: 700 },
+              bgcolor: 'background.paper',
+              boxShadow: 24,
+              p: 3,
+              borderRadius: 3,
+              outline: 'none',
+              overflowY: 'auto',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            <LocationManagement machine={selected?.name} />
+          </Box>
+        </Fade>
       </Modal>
+      {CompareDrawer}
     </Box>
   );
 }

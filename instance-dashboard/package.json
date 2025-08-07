@@ -1,6 +1,6 @@
 {
   "name": "instance-dashboard",
-  "homepage": "/dashboard",
+  "homepage": "https://whs.zubbsteel.com/dashboard",
   "version": "0.1.0",
   "private": true,
   "dependencies": {
