@@ -28,8 +28,10 @@ import {
   TableRow,
   Paper,
   Button,
-  TextField
+  TextField,
+  Modal
 } from '@mui/material';
+import LocationOnIcon from '@mui/icons-material/LocationOn';
 import SettingsIcon from '@mui/icons-material/Settings';
 import PowerSettingsNewIcon from '@mui/icons-material/PowerSettingsNew';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -40,6 +42,7 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import GetAppIcon from '@mui/icons-material/GetApp';
 import WifiIcon from '@mui/icons-material/Wifi';
 import { useLocation } from 'react-router-dom';
+import LocationManagement from './components/LocationManagement.js';
 
 // ใช้ API endpoints จาก config
 const endpoints = getApiEndpoints();
@@ -132,6 +135,7 @@ function App() {
   const timerRef = useRef();
   const query = useQuery();
   const [compareOpen, setCompareOpen] = useState(false);
+  const [locationManagementOpen, setLocationManagementOpen] = useState(false);
   const [compareDates, setCompareDates] = useState({ from: '', to: '' });
   const [stationData, setStationData] = useState([]); // ข้อมูลจาก Station
   const [planData, setPlanData] = useState([]); // ข้อมูลจาก Planning
@@ -216,6 +220,8 @@ function App() {
         const canSettings = normalizedRole === 'admin' || normalizedRole === 'dev';
         console.log('🔍 Settings menu access:', canSettings);
         return canSettings;
+      case 'location':
+        return normalizedRole === 'admin' || normalizedRole === 'dev';
       default:
         console.log('❌ Unknown menu type:', menuType);
         return false;
@@ -852,6 +858,15 @@ function App() {
                 <ListItemText primary="เปรียบเทียบข้อมูล" />
               </ListItem>
             )}
+
+            {canViewMenu('location') && (
+              <ListItem button onClick={() => setLocationManagementOpen(true)} sx={{ borderRadius: 2 }}>
+                <ListItemIcon>
+                  <LocationOnIcon />
+                </ListItemIcon>
+                <ListItemText primary="เพิ่ม Location" />
+              </ListItem>
+            )}
             
             {/* เพิ่มเมนูอื่นๆ ตามสิทธิ์ */}
             {canViewMenu('settings') && (
@@ -864,10 +879,10 @@ function App() {
             )}
             
             {/* แสดงข้อความเมื่อไม่มีสิทธิ์ */}
-            {!canViewMenu('compare') && !canViewMenu('settings') && (
+            {!canViewMenu('compare') && !canViewMenu('settings') && !canViewMenu('location') && (
               <ListItem>
-                <ListItemText 
-                  primary="ไม่มีสิทธิ์เข้าถึงเมนู" 
+                <ListItemText
+                  primary="ไม่มีสิทธิ์เข้าถึงเมนู"
                   secondary={`สิทธิ์ปัจจุบัน: ${userRole || 'ไม่พบ'}`}
                   sx={{ color: 'text.secondary' }}
                 />
@@ -1313,6 +1328,28 @@ function App() {
         {DrawerContent}
       </Drawer>
       {CompareDrawer}
+
+      <Modal
+        open={locationManagementOpen}
+        onClose={() => setLocationManagementOpen(false)}
+        aria-labelledby="location-management-modal-title"
+        aria-describedby="location-management-modal-description"
+      >
+        <Box sx={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          width: '80vw',
+          bgcolor: 'background.paper',
+          boxShadow: 24,
+          p: 4,
+          borderRadius: 2,
+          outline: 'none'
+        }}>
+          <LocationManagement />
+        </Box>
+      </Modal>
     </Box>
   );
 }

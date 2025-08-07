@@ -3,6 +3,7 @@ import cors from 'cors';
 import bodyParser from 'body-parser';
 import apiRouter from './api.js';
 import authRoutes from './routes/auth.js'; // เปลี่ยนจาก require เป็น import
+import locationsRoutes from './routes/locations.js';
 
 const app = express();
 const PORT = process.env.PORT || 4001;
@@ -32,6 +33,7 @@ app.use(bodyParser.urlencoded({ extended: true, limit: '10mb' }));
 // API routes
 app.use('/api', apiRouter);
 app.use('/api/auth', authRoutes);
+app.use('/api/locations', locationsRoutes);
 
 app.get('/', (req, res) => {
   res.send('DB Web Checker Backend API');
