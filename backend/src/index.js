@@ -2,10 +2,12 @@ import express from 'express';
 import cors from 'cors';
 import bodyParser from 'body-parser';
 import apiRouter from './api.js';
-import authRoutes from './routes/auth.js'; // เปลี่ยนจาก require เป็น import
+import authRoutes from './routes/auth.js';
 import locationsRoutes from './routes/locations.js';
 import slitPlanRoutes from './routes/slitPlan.js';
 import rmListRoutes from './routes/rmList.js';
+import dataSyncRoutes from './routes/dataSync.js';
+import { JobScheduler } from './services/jobScheduler.js';
 
 const app = express();
 const PORT = process.env.PORT || 4001;
@@ -38,11 +40,17 @@ app.use('/api/auth', authRoutes);
 app.use('/api/locations', locationsRoutes);
 app.use('/api/slit-plan', slitPlanRoutes);
 app.use('/api/rm-list', rmListRoutes);
+app.use('/api/sync', dataSyncRoutes);
 
 app.get('/', (req, res) => {
   res.send('DB Web Checker Backend API');
 });
 
+// เริ่ม Job Scheduler
+const jobScheduler = new JobScheduler();
+jobScheduler.startScheduledJobs();
+
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+  console.log('🚀 BOM Data Sync Service started');
 }); 
