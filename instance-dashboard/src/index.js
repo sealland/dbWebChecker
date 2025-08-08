@@ -5,13 +5,22 @@ import App from './App';
 import * as serviceWorkerRegistration from './serviceWorkerRegistration';
 import reportWebVitals from './reportWebVitals';
 // เพิ่ม BrowserRouter
-import { BrowserRouter } from 'react-router-dom';
+import BOMSyncDashboard from './components/BOMSyncDashboard';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import CheckPForm from './components/CheckPForm';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
     <BrowserRouter>
-      <App />
+      <Routes>
+        <Route path="/" element={<App />} />
+        <Route path="/dashboard" element={<App />} />
+        <Route path="/bom-sync" element={<BOMSyncDashboard />} />
+        <Route path="/sync-check-p" element={<BOMSyncDashboard />} />
+        <Route path="/check-p/new" element={<CheckPForm />} />
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      </Routes>
     </BrowserRouter>
   </React.StrictMode>
 );

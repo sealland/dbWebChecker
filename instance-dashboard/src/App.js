@@ -47,7 +47,7 @@ import AddIcon from '@mui/icons-material/Add';
 import ContentCutIcon from '@mui/icons-material/ContentCut'; // เพิ่ม import สำหรับไอคอนแผนสลิท
 import SlitPlan from './components/SlitPlan'; // Added import for SlitPlan
 import LocationManagement from './components/LocationManagement';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 // ใช้ API endpoints จาก config
 const endpoints = getApiEndpoints();
@@ -131,6 +131,7 @@ const getStatusColor = (status) => {
 };
 
 function App() {
+  const navigate = useNavigate();
   const [instances, setInstances] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState(null);
@@ -235,6 +236,8 @@ function App() {
         const canSlit = normalizedRole === 'admin' || normalizedRole === 'user';
         console.log('🔍 Slit menu access:', canSlit);
         return canSlit;
+      case 'sync':
+        return normalizedRole === 'admin';
       default:
         console.log('❌ Unknown menu type:', menuType);
         return false;
@@ -892,6 +895,20 @@ function App() {
               </ListItem>
             )}
 
+            {/* เมนู Sync Check P */}
+            {canViewMenu('sync') && (
+              <ListItem
+                button
+                onClick={() => { navigate('/sync-check-p'); handleDrawerClose(); }}
+                sx={{ borderRadius: 2 }}
+              >
+                <ListItemIcon>
+                  <GetAppIcon />
+                </ListItemIcon>
+                <ListItemText primary="Sync Check P" />
+              </ListItem>
+            )}
+
             {/* เมนูตั้งค่าระบบ */}
             {canViewMenu('settings') && (
               <ListItem button sx={{ borderRadius: 2 }}>
@@ -902,8 +919,10 @@ function App() {
               </ListItem>
             )}
 
+            {/* เมนูเพิ่ม Check P - removed from Drawer per request */}
+
             {/* แสดงข้อความเมื่อไม่มีสิทธิ์ */}
-            {!canViewMenu('compare') && !canViewMenu('settings') && !canViewMenu('location') && !canViewMenu('slit') && (
+            {!canViewMenu('compare') && !canViewMenu('settings') && !canViewMenu('location') && !canViewMenu('slit') && !canViewMenu('sync') && (
               <ListItem>
                 <ListItemText 
                   primary="ไม่มีสิทธิ์เข้าถึงเมนู" 
@@ -958,6 +977,17 @@ function App() {
               </IconButton>
             </span>
           </Tooltip>
+          {canViewMenu('sync') && (
+            <Button
+              variant="contained"
+              color="primary"
+              startIcon={<AddIcon />}
+              onClick={() => navigate('/check-p/new')}
+              sx={{ ml: 1 }}
+            >
+              เพิ่ม Check P
+            </Button>
+          )}
         </Toolbar>
       </AppBar>
       <Box sx={{ p: { xs: 2, sm: 4 }, maxWidth: 1400, mx: 'auto', mt: 4 }}>
