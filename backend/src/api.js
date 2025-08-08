@@ -1982,11 +1982,18 @@ router.get('/instances/card-data', async (req, res) => {
           ORDER BY rmd_Date DESC, rmd_qty2 DESC
         `;
         
-        const finishGoodsPool = await sql.connect(ppConfig);
-        const finishGoodsResult = await finishGoodsPool.request()
-          .input('station', sql.VarChar, mappedStation)
-          .query(finishGoodsQuery);
-        await finishGoodsPool.close();
+        let finishGoodsPool = null;
+        let finishGoodsResult;
+        try {
+          finishGoodsPool = await new sql.ConnectionPool(ppConfig).connect();
+          finishGoodsResult = await finishGoodsPool.request()
+            .input('station', sql.VarChar, mappedStation)
+            .query(finishGoodsQuery);
+        } finally {
+          if (finishGoodsPool) {
+            await finishGoodsPool.close().catch(() => {});
+          }
+        }
         
         const finishGoods = finishGoodsResult.recordset.length > 0 ? finishGoodsResult.recordset[0].rmd_size : null;
         const lastProductionDate = finishGoodsResult.recordset.length > 0 ? finishGoodsResult.recordset[0].rmd_date : null;
@@ -2016,12 +2023,19 @@ router.get('/instances/card-data', async (req, res) => {
           AND postingdate = @today
         `;
         
-        const productionPlanPool = await sql.connect(ceoReportConfig);
-        const productionPlanResult = await productionPlanPool.request()
-          .input('station', sql.VarChar, mappedOCP)
-          .input('today', sql.VarChar, today)
-          .query(productionPlanQuery);
-        await productionPlanPool.close();
+        let productionPlanPool = null;
+        let productionPlanResult;
+        try {
+          productionPlanPool = await new sql.ConnectionPool(ceoReportConfig).connect();
+          productionPlanResult = await productionPlanPool.request()
+            .input('station', sql.VarChar, mappedOCP)
+            .input('today', sql.VarChar, today)
+            .query(productionPlanQuery);
+        } finally {
+          if (productionPlanPool) {
+            await productionPlanPool.close().catch(() => {});
+          }
+        }
         
         const productionPlan = productionPlanResult.recordset.length > 0 ? productionPlanResult.recordset[0].size : null;
         
@@ -2156,7 +2170,7 @@ router.get('/instances/card-data/:name', async (req, res) => {
       
       let productionPlanPool = null;
       try {
-        productionPlanPool = await sql.connect(ceoReportConfig);
+        productionPlanPool = await new sql.ConnectionPool(ceoReportConfig).connect();
         const productionPlanResult = await productionPlanPool.request()
           .input('station', sql.VarChar, mappedOCP)
           .input('today', sql.VarChar, today)

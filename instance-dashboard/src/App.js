@@ -43,8 +43,11 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import GetAppIcon from '@mui/icons-material/GetApp';
 import WifiIcon from '@mui/icons-material/Wifi';
 import LocationOnIcon from '@mui/icons-material/LocationOn'; // Added import for LocationOnIcon
+import AddIcon from '@mui/icons-material/Add';
+import ContentCutIcon from '@mui/icons-material/ContentCut'; // เพิ่ม import สำหรับไอคอนแผนสลิท
+import SlitPlan from './components/SlitPlan'; // Added import for SlitPlan
+import LocationManagement from './components/LocationManagement';
 import { useLocation } from 'react-router-dom';
-import LocationManagement from './components/LocationManagement'; // Added import for LocationManagement
 
 // ใช้ API endpoints จาก config
 const endpoints = getApiEndpoints();
@@ -72,7 +75,7 @@ function StatusAvatar({ online }) {
 }
 
 function useQuery() {
-  const { search } = useLocation();
+  const search = window.location.search;
   return useMemo(() => new URLSearchParams(search), [search]);
 }
 
@@ -153,6 +156,8 @@ function App() {
   const [userRole, setUserRole] = useState(null);
   const [userLoading, setUserLoading] = useState(false);
   const [locationManagementOpen, setLocationManagementOpen] = useState(false);
+  // เพิ่ม state สำหรับแผนสลิท
+  const [slitPlanOpen, setSlitPlanOpen] = useState(false);
 
   // ฟังก์ชันตรวจสอบ Role ของ currentUser
   const checkUserRole = async (currentUser) => {
@@ -226,6 +231,10 @@ function App() {
         const canLocation = normalizedRole === 'admin' || normalizedRole === 'dev';
         console.log('🔍 Location menu access:', canLocation);
         return canLocation;
+      case 'slit':
+        const canSlit = normalizedRole === 'admin' || normalizedRole === 'user';
+        console.log('🔍 Slit menu access:', canSlit);
+        return canSlit;
       default:
         console.log('❌ Unknown menu type:', menuType);
         return false;
@@ -873,6 +882,16 @@ function App() {
               </ListItem>
             )}
 
+            {/* เมนูแผนสลิท */}
+            {canViewMenu('slit') && (
+              <ListItem button onClick={() => setSlitPlanOpen(true)} sx={{ borderRadius: 2 }}>
+                <ListItemIcon>
+                  <ContentCutIcon />
+                </ListItemIcon>
+                <ListItemText primary="แผนสลิท" />
+              </ListItem>
+            )}
+
             {/* เมนูตั้งค่าระบบ */}
             {canViewMenu('settings') && (
               <ListItem button sx={{ borderRadius: 2 }}>
@@ -884,7 +903,7 @@ function App() {
             )}
 
             {/* แสดงข้อความเมื่อไม่มีสิทธิ์ */}
-            {!canViewMenu('compare') && !canViewMenu('settings') && !canViewMenu('location') && (
+            {!canViewMenu('compare') && !canViewMenu('settings') && !canViewMenu('location') && !canViewMenu('slit') && (
               <ListItem>
                 <ListItemText 
                   primary="ไม่มีสิทธิ์เข้าถึงเมนู" 
@@ -1370,6 +1389,43 @@ function App() {
             }}
           >
             <LocationManagement machine={selected?.name} />
+          </Box>
+        </Fade>
+      </Modal>
+      <Modal
+        open={slitPlanOpen}
+        onClose={() => setSlitPlanOpen(false)}
+        aria-labelledby="slit-plan-modal-title"
+        aria-describedby="slit-plan-modal-description"
+        closeAfterTransition
+        slots={{ backdrop: Backdrop }}
+        slotProps={{
+          backdrop: {
+            timeout: 300,
+          },
+        }}
+      >
+        <Fade in={slitPlanOpen}>
+          <Box
+            sx={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              width: { xs: '95vw', sm: '80vw', md: '70vw' },
+              maxWidth: 1200,
+              maxHeight: '90vh',
+              bgcolor: 'background.paper',
+              borderRadius: 2,
+              boxShadow: 24,
+              p: 0,
+              overflow: 'hidden',
+            }}
+          >
+            <SlitPlan 
+              machine={selected?.name} 
+              onClose={() => setSlitPlanOpen(false)}
+            />
           </Box>
         </Fade>
       </Modal>

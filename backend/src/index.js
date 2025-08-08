@@ -4,6 +4,8 @@ import bodyParser from 'body-parser';
 import apiRouter from './api.js';
 import authRoutes from './routes/auth.js'; // เปลี่ยนจาก require เป็น import
 import locationsRoutes from './routes/locations.js';
+import slitPlanRoutes from './routes/slitPlan.js';
+import rmListRoutes from './routes/rmList.js';
 
 const app = express();
 const PORT = process.env.PORT || 4001;
@@ -34,6 +36,8 @@ app.use(bodyParser.urlencoded({ extended: true, limit: '10mb' }));
 app.use('/api', apiRouter);
 app.use('/api/auth', authRoutes);
 app.use('/api/locations', locationsRoutes);
+app.use('/api/slit-plan', slitPlanRoutes);
+app.use('/api/rm-list', rmListRoutes);
 
 app.get('/', (req, res) => {
   res.send('DB Web Checker Backend API');
