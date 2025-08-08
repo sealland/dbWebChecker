@@ -166,7 +166,6 @@ function App() {
     
     // แปลง currentUser เป็นตัวเล็ก
     const normalizedUser = currentUser.toLowerCase().trim();
-    console.log('🔍 Normalized user:', normalizedUser);
     
     setUserLoading(true);
     try {
@@ -182,17 +181,12 @@ function App() {
         }
       });
       
-      console.log('🔍 API Response:', response.data);
-      
       if (response.data.success) {
         setUserRole(response.data.userLevel);
-        console.log('👤 User role loaded:', response.data.userLevel);
       } else {
-        console.error('❌ Failed to load user role:', response.data.message);
         setUserRole(null);
       }
     } catch (error) {
-      console.error('❌ Error checking user role:', error);
       setUserRole(null);
     } finally {
       setUserLoading(false);
@@ -201,45 +195,31 @@ function App() {
 
   // ฟังก์ชันตรวจสอบว่า user มีสิทธิ์ดูเมนูหรือไม่
   const canViewMenu = (menuType) => {
-    console.log('🔍 Checking menu access:', { menuType, userRole });
-    
     if (!userRole) {
-      console.log('❌ No user role found');
       return false;
     }
     
     // แปลง userRole เป็นตัวเล็กเพื่อเปรียบเทียบ
     const normalizedRole = userRole.toLowerCase();
-    console.log('🔍 Normalized role:', normalizedRole);
     
     // admin และ dev สามารถดูเมนูทั้งหมด
     if (normalizedRole === 'admin' || normalizedRole === 'dev') {
-      console.log('✅ User has admin/dev access');
       return true;
     }
     
     // สำหรับ user level อื่นๆ สามารถกำหนดสิทธิ์เฉพาะได้
     switch (menuType) {
       case 'compare':
-        const canCompare = normalizedRole === 'admin' || normalizedRole === 'dev';
-        console.log('🔍 Compare menu access:', canCompare);
-        return canCompare;
+        return normalizedRole === 'admin' || normalizedRole === 'dev';
       case 'settings':
-        const canSettings = normalizedRole === 'admin' || normalizedRole === 'dev';
-        console.log('🔍 Settings menu access:', canSettings);
-        return canSettings;
+        return normalizedRole === 'admin' || normalizedRole === 'dev';
       case 'location':
-        const canLocation = normalizedRole === 'admin' || normalizedRole === 'dev';
-        console.log('🔍 Location menu access:', canLocation);
-        return canLocation;
+        return normalizedRole === 'admin' || normalizedRole === 'dev';
       case 'slit':
-        const canSlit = normalizedRole === 'admin' || normalizedRole === 'user';
-        console.log('🔍 Slit menu access:', canSlit);
-        return canSlit;
+        return normalizedRole === 'admin' || normalizedRole === 'user';
       case 'sync':
         return normalizedRole === 'admin';
       default:
-        console.log('❌ Unknown menu type:', menuType);
         return false;
     }
   };
@@ -248,7 +228,6 @@ function App() {
   useEffect(() => {
     const currentUser = query.get('currentUser');
     if (currentUser) {
-      console.log('👤 Current user from URL:', currentUser);
       checkUserRole(currentUser);
     }
   }, [query]);
@@ -272,11 +251,9 @@ function App() {
       setLastUpdate(new Date());
       
       // เช็คสถานะเครื่องทันทีหลังจากโหลดรายชื่อ
-      console.log('🔍 Checking machine status for all instances...');
       await checkAllMachineStatus(instancesWithStatus);
       
       // ดึงข้อมูลผลิตล่าสุดสำหรับทุกเครื่องอัตโนมัติ (หลังจากเช็คสถานะเสร็จ)
-      console.log('🔍 Fetching production data for all machines...');
       for (let i = 0; i < instancesWithStatus.length; i++) {
         const instance = instancesWithStatus[i];
         // เพิ่ม delay 1000ms ระหว่างการเรียก API
@@ -325,9 +302,7 @@ function App() {
       ));
       
       // แสดงข้อความตามสถานะ
-      console.log(`✅ ${instance.name}: ${statusInfo.statusText} (${statusInfo.avgPingTime}ms)`);
     } catch (error) {
-      console.error(`❌ Error checking status for ${instance.name}:`, error);
       setInstances(prev => prev.map(inst => 
         inst.name === instance.name 
           ? { 
@@ -350,7 +325,6 @@ function App() {
     
     setCheckingAllStatus(true);
     try {
-      console.log('🔍 Checking status for all machines...');
       
       // สร้าง array ของ promises สำหรับเช็คสถานะพร้อมกัน
       const statusPromises = instances.map(async (instance) => {
@@ -360,7 +334,6 @@ function App() {
           });
           
           const statusInfo = response.data;
-          console.log(`✅ ${instance.name}: ${statusInfo.statusText} (${statusInfo.avgPingTime}ms)`);
           
           return {
             name: instance.name,
@@ -368,7 +341,6 @@ function App() {
             data: statusInfo
           };
         } catch (error) {
-          console.error(`❌ Error checking status for ${instance.name}:`, error);
           return {
             name: instance.name,
             success: false,
@@ -407,9 +379,7 @@ function App() {
         return inst;
       }));
       
-      console.log('✅ All machine status checks completed');
     } catch (error) {
-      console.error('❌ Error checking all machine status:', error);
     } finally {
       setCheckingAllStatus(false);
     }
@@ -419,7 +389,6 @@ function App() {
   const fetchLatestProductionData = async (instance) => {
     setLoadingProduction(prev => ({ ...prev, [instance.name]: true }));
     try {
-      console.log(`🔍 Fetching production data for: ${instance.name}`);
       
       // เรียก card-data API เฉพาะเครื่องที่เลือก
       const cardDataResponse = await axios.get(getApiUrl(`${endpoints.cardData}/${encodeURIComponent(instance.name)}`));
@@ -427,14 +396,11 @@ function App() {
       if (cardDataResponse.data.success) {
         const cardData = cardDataResponse.data.data;
         
-        console.log(`✅ Production data for ${instance.name}:`, cardData);
-        
         setInstanceDetails(prev => ({
           ...prev,
           [instance.name]: cardData
         }));
       } else {
-        console.log(`❌ No production data found for: ${instance.name}`);
         setInstanceDetails(prev => ({
           ...prev,
           [instance.name]: {
@@ -445,7 +411,6 @@ function App() {
         }));
       }
     } catch (error) {
-      console.error(`❌ Error fetching production data for ${instance.name}:`, error);
       setInstanceDetails(prev => ({
         ...prev,
         [instance.name]: {
@@ -495,35 +460,25 @@ function App() {
       // ส่งชื่อเครื่องเต็มไปให้ backend
       const machineParam = instance.name;
       
-      console.log('🔍 Fetching details for:', instance.name, '→', machineParam);
-      
       // ดึงข้อมูล finish goods ล่าสุด
-      console.log('🔍 Calling finish-goods API with param:', machineParam);
       const finishGoodsResponse = await axios.get(getApiUrl(`${endpoints.finishGoods}?name=${encodeURIComponent(instance.name)}`));
-      console.log('🔍 Finish goods response:', finishGoodsResponse.data);
       
       // ดึงข้อมูลแผนผลิต
-      console.log('🔍 Calling production-plan API with param:', machineParam);
       const productionPlanResponse = await axios.get(getApiUrl(`${endpoints.productionPlan}?name=${encodeURIComponent(instance.name)}`));
-      console.log('🔍 Production plan response:', productionPlanResponse.data);
       
       const cardData = {
         finishGoods: finishGoodsResponse.data?.size || 'ไม่มีข้อมูล',
         productionPlan: productionPlanResponse.data?.maktx || 'ไม่มีข้อมูล'
       };
       
-      console.log('🔍 Setting card data for:', instance.name, cardData);
-      
       setInstanceDetails(prev => {
         const newState = {
           ...prev,
           [instance.name]: cardData
         };
-        console.log('🔍 Updated instanceDetails state:', newState);
         return newState;
       });
     } catch (error) {
-      console.error(`Error fetching details for ${instance.name}:`, error);
       setInstanceDetails(prev => ({
         ...prev,
         [instance.name]: {
@@ -557,7 +512,6 @@ function App() {
       setStationData(response.data.station.data || []);
       setPlanData(response.data.planning.data || []);
     } catch (error) {
-      console.error('Error fetching compare data:', error);
       setStationData([]);
       setPlanData([]);
     } finally {
@@ -585,12 +539,6 @@ function App() {
     
     setUpdating(true);
     try {
-      console.log('🔄 Starting update process...', {
-        name: selected.name,
-        station: selected.name,
-        fromDate: compareDates.from,
-        toDate: compareDates.to
-      });
       
       const response = await axios.post(getApiUrl(endpoints.compare.update), {
         name: selected.name,
@@ -600,8 +548,6 @@ function App() {
         shift: 'Z',
         user: 'system'
       });
-      
-      console.log('✅ Update response:', response.data);
       
       // รีเฟรชข้อมูลหลังจากอัพเดต
       await fetchCompareData();
@@ -614,8 +560,6 @@ function App() {
       }
       alert(successMessage);
     } catch (error) {
-      console.error('❌ Error updating data:', error);
-      
       let errorMessage = 'เกิดข้อผิดพลาดในการอัพเดตข้อมูล';
       if (error.response) {
         // มี response จาก server

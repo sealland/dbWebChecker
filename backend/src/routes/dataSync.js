@@ -198,7 +198,6 @@ router.get('/check-p', async (req, res) => {
 
     res.json({ success: true, data: listRes.recordset, total, page, pageSize });
   } catch (e) {
-    console.error('GET /check-p error:', e);
     res.status(500).json({ success: false, error: e.message });
   } finally {
     if (pool) await pool.close().catch(()=>{});
