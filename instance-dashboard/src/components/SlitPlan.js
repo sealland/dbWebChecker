@@ -165,7 +165,7 @@ const SlitPlan = ({ machine, onClose }) => {
 
   return (
     <Box sx={{ 
-      height: '100vh', 
+      height: '75vh', // ลดจาก 100vh เป็น 75vh (ลดลง 25%)
       display: 'flex', 
       flexDirection: 'column',
       overflow: 'hidden'
@@ -312,7 +312,7 @@ const SlitPlan = ({ machine, onClose }) => {
           }}>
             <TableContainer sx={{ 
               '& .MuiTable-root': {
-                minWidth: 1200, // เพิ่มความกว้างขั้นต่ำ
+                minWidth: 1000, // เพิ่มความกว้างขั้นต่ำให้มากขึ้น
                 width: 'max-content' // ให้ table ขยายตามเนื้อหา
               }
             }}>

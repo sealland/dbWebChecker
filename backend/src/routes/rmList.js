@@ -63,7 +63,7 @@ router.get('/', async (req, res) => {
             SELECT matnr, batch, width, sloc, weight, qty, unit, rm_status
             FROM tbl_rm_list
             ${whereSql}
-            ORDER BY batch DESC
+            ORDER BY rm_seq DESC
             OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY
         `);
 
