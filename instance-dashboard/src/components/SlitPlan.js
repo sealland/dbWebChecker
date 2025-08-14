@@ -41,7 +41,7 @@ const SlitPlan = ({ machine, onClose }) => {
 
   // Pagination
   const [page, setPage] = useState(0); // 0-based
-  const [rowsPerPage, setRowsPerPage] = useState(20);
+  const [rowsPerPage, setRowsPerPage] = useState(10); // เปลี่ยนจาก 20 เป็น 10
   const [total, setTotal] = useState(0);
 
   // ดึงข้อมูล RM List เมื่อ component mount
@@ -80,9 +80,12 @@ const SlitPlan = ({ machine, onClose }) => {
       setLoading(true);
       setMessage({ type: '', text: '' });
 
+      // เพิ่ม 'S' นำหน้าเลข Charge ที่ผู้ใช้กรอก
+      const fullChargeNumber = `S${chargeInput.trim()}`;
+
       // 1) ค้นหาข้อมูลใน production scale
       const response = await axios.get(
-        `${getApiUrl('/api/slit-plan/search')}?charge=${encodeURIComponent(chargeInput.trim())}`
+        `${getApiUrl('/api/slit-plan/search')}?charge=${encodeURIComponent(fullChargeNumber)}`
       );
       if (!response.data || response.data.length === 0) {
         setMessage({ type: 'warning', text: 'ไม่มีข้อมูล slit สำหรับ Charge นี้' });
@@ -91,10 +94,10 @@ const SlitPlan = ({ machine, onClose }) => {
 
       // 2) เช็คว่ามีในเครื่องปลายทางหรือยัง
       const checkResponse = await axios.get(
-        `${getApiUrl('/api/rm-list/check')}?machine=${encodeURIComponent(machine)}&charge=${encodeURIComponent(chargeInput.trim())}`
+        `${getApiUrl('/api/rm-list/check')}?machine=${encodeURIComponent(machine)}&charge=${encodeURIComponent(fullChargeNumber)}`
       );
       if (checkResponse.data?.exists) {
-        setMessage({ type: 'warning', text: `Charge ${chargeInput} เคยถูกเพิ่มลงในระบบแล้ว` });
+        setMessage({ type: 'warning', text: `Charge ${fullChargeNumber} เคยถูกเพิ่มลงในระบบแล้ว` });
         return;
       }
 
@@ -174,22 +177,24 @@ const SlitPlan = ({ machine, onClose }) => {
       {/* Content */}
       <Box sx={{ p: 3, flex: 1, overflow: 'auto' }}>
         {/* Search Section */}
-        <Paper sx={{ p: 3, mb: 3 }}>
+        <Paper sx={{ p: 2, mb: 2 }}>
           <Typography variant="h6" gutterBottom>
             ค้นหาข้อมูล Slit
           </Typography>
-          <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', mb: 2 }}>
+          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mb: 1 }}>
             <TextField
               label="เลข Charge"
               value={chargeInput}
               onChange={(e) => setChargeInput(e.target.value)}
               placeholder="กรอกเลข Charge"
+              size="small"
               sx={{ flex: 1 }}
               onKeyPress={(e) => e.key === 'Enter' && handleSearchSlit()}
             />
             <Button
               variant="contained"
               onClick={handleSearchSlit}
+              size="small"
               disabled={loading || !chargeInput.trim()}
               startIcon={loading ? <CircularProgress size={20} /> : <SearchIcon />}
             >
@@ -198,7 +203,7 @@ const SlitPlan = ({ machine, onClose }) => {
           </Box>
           
           {message.text && (
-            <Alert severity={message.type} sx={{ mb: 2 }}>
+            <Alert severity={message.type} sx={{ mt: 2 }}>
               {message.text}
             </Alert>
           )}
@@ -221,8 +226,8 @@ const SlitPlan = ({ machine, onClose }) => {
         </Box>
 
         {/* RM List Table */}
-        <Paper sx={{ width: '100%', overflow: 'auto' }}>
-          <TableContainer>
+        <Paper sx={{ width: '100%' }}>
+          <TableContainer sx={{ maxHeight: 400 }}>
             <Table stickyHeader>
               <TableHead>
                 <TableRow>
@@ -308,15 +313,15 @@ const SlitPlan = ({ machine, onClose }) => {
               </TableBody>
             </Table>
           </TableContainer>
-        <TablePagination
-          component="div"
-          count={total}
-          page={page}
-          onPageChange={(_, newPage) => setPage(newPage)}
-          rowsPerPage={rowsPerPage}
-          onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }}
-          rowsPerPageOptions={[10, 20, 50, 100, 200]}
-        />
+          <TablePagination
+            component="div"
+            count={total}
+            page={page}
+            onPageChange={(_, newPage) => setPage(newPage)}
+            rowsPerPage={rowsPerPage}
+            onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }}
+            rowsPerPageOptions={[10, 20, 50, 100, 200]}
+          />
         </Paper>
       </Box>
     </Box>
