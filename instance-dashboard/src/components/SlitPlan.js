@@ -106,13 +106,22 @@ const SlitPlan = ({ machine, onClose }) => {
         const last4 = item.rmd_mat?.slice(-4) || '0000';
         const size = (parseInt(last4, 10) / 10).toFixed(1);
 
+        // ตรวจสอบ 2 หลักแรกของ fullChargeNumber เพื่อกำหนด sloc
+        const firstTwoChars = fullChargeNumber.substring(0, 2);
+        let sloc;
+        if (firstTwoChars === 'S1') {
+          sloc = '2103';
+        } else {
+          sloc = '2106';
+        }
+
         return axios.post(
           `${getApiUrl('/api/rm-list')}?machine=${encodeURIComponent(machine)}`,
           {
             matnr: item.rmd_mat,
             batch: item.rmd_charge,
             width: size,
-            sloc: 'SLIT',
+            sloc: sloc,
             weight: item.rmd_weight,
             qty: item.rmd_weight,
             unit: 'KG',
@@ -127,7 +136,8 @@ const SlitPlan = ({ machine, onClose }) => {
       setInsertedItems(insertedData);
       setMessage({ type: 'success', text: `เพิ่มข้อมูล ${insertedData.length} รายการสำเร็จ` });
 
-      // refresh RM list
+      // Reset pagination to first page and refresh RM list
+      setPage(0);
       await fetchRmList();
     } catch (error) {
       console.error('Error processing slit plan:', error);
@@ -154,41 +164,59 @@ const SlitPlan = ({ machine, onClose }) => {
   };
 
   return (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <Box sx={{ 
+      height: '100vh', 
+      display: 'flex', 
+      flexDirection: 'column',
+      overflow: 'hidden'
+    }}>
       {/* Header */}
       <Box sx={{ 
-        p: 3, 
+        p: { xs: 1, sm: 1, md: 2 }, 
         borderBottom: 1, 
         borderColor: 'divider',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
         bgcolor: 'primary.main',
-        color: 'white'
+        color: 'white',
+        flexShrink: 0
       }}>
-        <Typography variant="h5" fontWeight={600}>
+        <Typography variant="h6" fontWeight={600} >
           แผนสลิท - {machine}
         </Typography>
-        <IconButton onClick={onClose} sx={{ color: 'white' }}>
-          <CloseIcon />
+        <IconButton onClick={onClose} sx={{ color: 'white' }} size="small">
+          <CloseIcon fontSize="small"/>
         </IconButton>
       </Box>
 
       {/* Content */}
-      <Box sx={{ p: 3, flex: 1, overflow: 'auto' }}>
+      <Box sx={{ 
+        p: { xs: 0.5, sm: 0.5, md: 1 }, 
+        flex: 1, 
+        overflow: 'auto',
+        display: 'flex',
+        flexDirection: 'column'
+      }}>
         {/* Search Section */}
-        <Paper sx={{ p: 2, mb: 2 }}>
-          <Typography variant="h6" gutterBottom>
+        <Paper sx={{ p: { xs: 0.5, sm: 1 }, mb: 1, flexShrink: 0 }}>
+          <Typography variant="h6" gutterBottom sx={{ fontSize: { xs: '1rem', sm: '1.1rem', md: '1.25rem' } }}>
             ค้นหาข้อมูล Slit
           </Typography>
-          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mb: 1 }}>
+          <Box sx={{ 
+            display: 'flex', 
+            gap: 1, 
+            alignItems: 'center', 
+            mb: 1,
+            flexDirection: { xs: 'column', sm: 'row' }
+          }}>
             <TextField
               label="เลข Charge"
               value={chargeInput}
               onChange={(e) => setChargeInput(e.target.value)}
               placeholder="กรอกเลข Charge"
               size="small"
-              sx={{ flex: 1 }}
+              sx={{ flex: 1, minWidth: { xs: '100%', sm: 'auto' } }}
               onKeyPress={(e) => e.key === 'Enter' && handleSearchSlit()}
             />
             <Button
@@ -197,6 +225,7 @@ const SlitPlan = ({ machine, onClose }) => {
               size="small"
               disabled={loading || !chargeInput.trim()}
               startIcon={loading ? <CircularProgress size={20} /> : <SearchIcon />}
+              sx={{ minWidth: { xs: '100%', sm: 'auto' } }}
             >
               เพิ่ม
             </Button>
@@ -210,8 +239,16 @@ const SlitPlan = ({ machine, onClose }) => {
         </Paper>
 
         {/* Filter Section */}
-        <Box sx={{ mb: 3 }}>
-          <FormControl sx={{ minWidth: 200 }}>
+        <Box sx={{ 
+          mb: 2, 
+          flexShrink: 0,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexDirection: { xs: 'column', sm: 'row' },
+          gap: 2
+        }}>
+          <FormControl sx={{ minWidth: { xs: '100%', sm: 150 } }} size="small">
             <InputLabel>สถานะ</InputLabel>
             <Select
               value={statusFilter}
@@ -223,96 +260,8 @@ const SlitPlan = ({ machine, onClose }) => {
               <MenuItem value="C">Completed</MenuItem>
             </Select>
           </FormControl>
-        </Box>
-
-        {/* RM List Table */}
-        <Paper sx={{ width: '100%' }}>
-          <TableContainer sx={{ maxHeight: 400 }}>
-            <Table stickyHeader>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Material</TableCell>
-                  <TableCell>Batch</TableCell>
-                  <TableCell>Width</TableCell>
-                  <TableCell>Storage Location</TableCell>
-                  <TableCell>Weight</TableCell>
-                  <TableCell>Qty</TableCell>
-                  <TableCell>Unit</TableCell>
-                  <TableCell>Status</TableCell>
-                  <TableCell align="right">Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {loading ? (
-                  <TableRow>
-                    <TableCell colSpan={8} align="center">
-                      <CircularProgress />
-                    </TableCell>
-                  </TableRow>
-                ) : rmList.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={8} align="center">
-                      ไม่มีข้อมูล
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  rmList.map((item, index) => (
-                    <TableRow 
-                      key={index}
-                      sx={{ 
-                        bgcolor: insertedItems.some(inserted => 
-                          inserted.matnr === item.matnr && 
-                          inserted.batch === item.batch
-                        ) ? 'success.light' : 'inherit'
-                      }}
-                    >
-                      <TableCell>{item.matnr}</TableCell>
-                      <TableCell>{item.batch}</TableCell>
-                      <TableCell>{item.width}</TableCell>
-                      <TableCell>{item.sloc}</TableCell>
-                      <TableCell>{item.weight}</TableCell>
-                      <TableCell>{item.qty}</TableCell>
-                      <TableCell>{item.unit}</TableCell>
-                      <TableCell>
-                        <Chip 
-                          label={getStatusText(item.rm_status)} 
-                          color={getStatusColor(item.rm_status)}
-                          size="small"
-                        />
-                      </TableCell>
-                      <TableCell align="right">
-                        {String(item.rm_status).toUpperCase() !== 'C' && (
-                          <IconButton
-                            aria-label="delete"
-                            color="error"
-                            size="small"
-                            onClick={async () => {
-                              if (!window.confirm(`ยืนยันลบ Batch ${item.batch}?`)) return;
-                              try {
-                                setLoading(true);
-                                await axios.delete(
-                                  `${getApiUrl('/api/rm-list')}/${encodeURIComponent(item.batch)}?machine=${encodeURIComponent(machine)}`
-                                );
-                                await fetchRmList();
-                                setMessage({ type: 'success', text: `ลบ ${item.batch} สำเร็จ` });
-                              } catch (e) {
-                                console.error('Delete error:', e);
-                                setMessage({ type: 'error', text: 'ลบไม่สำเร็จ' });
-                              } finally {
-                                setLoading(false);
-                              }
-                            }}
-                          >
-                            <DeleteIcon fontSize="small" />
-                          </IconButton>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
+          
+          {/* Pagination moved to top right */}
           <TablePagination
             component="div"
             count={total}
@@ -321,7 +270,138 @@ const SlitPlan = ({ machine, onClose }) => {
             rowsPerPage={rowsPerPage}
             onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }}
             rowsPerPageOptions={[10, 20, 50, 100, 200]}
+            sx={{ 
+              flexShrink: 0,
+              '& .MuiTablePagination-toolbar': {
+                padding: 0,
+                minHeight: 'auto'
+              },
+              '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
+                margin: 0
+              }
+            }}
           />
+        </Box>
+
+        {/* RM List Table */}
+        <Paper sx={{ 
+          width: '100%', 
+          flex: 1, 
+          display: 'flex', 
+          flexDirection: 'column',
+          minHeight: 0
+        }}>
+          <Box sx={{
+            flex: 1,
+            overflow: 'auto',
+            overflowX: 'auto',
+            minHeight: 0,
+            '&::-webkit-scrollbar': {
+              height: '8px'
+            },
+            '&::-webkit-scrollbar-track': {
+              background: '#f1f1f1'
+            },
+            '&::-webkit-scrollbar-thumb': {
+              background: '#888',
+              borderRadius: '4px'
+            },
+            '&::-webkit-scrollbar-thumb:hover': {
+              background: '#555'
+            }
+          }}>
+            <TableContainer sx={{ 
+              '& .MuiTable-root': {
+                minWidth: 1200, // เพิ่มความกว้างขั้นต่ำ
+                width: 'max-content' // ให้ table ขยายตามเนื้อหา
+              }
+            }}>
+              <Table stickyHeader>
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={{ minWidth: 150, whiteSpace: 'nowrap' }}>Material</TableCell>
+                    <TableCell sx={{ minWidth: 150, whiteSpace: 'nowrap' }}>Batch</TableCell>
+                    <TableCell sx={{ minWidth: 100, whiteSpace: 'nowrap' }}>Width</TableCell>
+                    <TableCell sx={{ minWidth: 150, whiteSpace: 'nowrap' }}>Storage Location</TableCell>
+                    <TableCell sx={{ minWidth: 120, whiteSpace: 'nowrap' }}>Weight</TableCell>
+                    <TableCell sx={{ minWidth: 100, whiteSpace: 'nowrap' }}>Qty</TableCell>
+                    <TableCell sx={{ minWidth: 80, whiteSpace: 'nowrap' }}>Unit</TableCell>
+                    <TableCell sx={{ minWidth: 120, whiteSpace: 'nowrap' }}>Status</TableCell>
+                    <TableCell align="right" sx={{ minWidth: 100, whiteSpace: 'nowrap' }}>Actions</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {loading ? (
+                    <TableRow>
+                      <TableCell colSpan={9} align="center">
+                        <CircularProgress />
+                      </TableCell>
+                    </TableRow>
+                  ) : rmList.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={9} align="center">
+                        ไม่มีข้อมูล
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    rmList.map((item, index) => (
+                      <TableRow 
+                        key={index}
+                        sx={{ 
+                          bgcolor: insertedItems.some(inserted => 
+                            inserted.matnr === item.matnr && 
+                            inserted.batch === item.batch
+                          ) ? 'success.light' : 'inherit'
+                        }}
+                      >
+                        <TableCell sx={{ minWidth: 150, whiteSpace: 'nowrap' }}>{item.matnr}</TableCell>
+                        <TableCell sx={{ minWidth: 150, whiteSpace: 'nowrap' }}>{item.batch}</TableCell>
+                        <TableCell sx={{ minWidth: 100, whiteSpace: 'nowrap' }}>{item.width}</TableCell>
+                        <TableCell sx={{ minWidth: 150, whiteSpace: 'nowrap' }}>{item.sloc}</TableCell>
+                        <TableCell sx={{ minWidth: 120, whiteSpace: 'nowrap' }}>{item.weight}</TableCell>
+                        <TableCell sx={{ minWidth: 100, whiteSpace: 'nowrap' }}>{item.qty}</TableCell>
+                        <TableCell sx={{ minWidth: 80, whiteSpace: 'nowrap' }}>{item.unit}</TableCell>
+                        <TableCell sx={{ minWidth: 120, whiteSpace: 'nowrap' }}>
+                          <Chip 
+                            label={getStatusText(item.rm_status)} 
+                            color={getStatusColor(item.rm_status)}
+                            size="small"
+                          />
+                        </TableCell>
+                        <TableCell align="right" sx={{ minWidth: 100, whiteSpace: 'nowrap' }}>
+                          {String(item.rm_status).toUpperCase() !== 'C' && (
+                            <IconButton
+                              aria-label="delete"
+                              color="error"
+                              size="small"
+                              onClick={async () => {
+                                if (!window.confirm(`ยืนยันลบ Batch ${item.batch}?`)) return;
+                                try {
+                                  setLoading(true);
+                                  await axios.delete(
+                                    `${getApiUrl('/api/rm-list')}/${encodeURIComponent(item.batch)}?machine=${encodeURIComponent(machine)}`
+                                  );
+                                  await fetchRmList();
+                                  setMessage({ type: 'success', text: `ลบ ${item.batch} สำเร็จ` });
+                                } catch (e) {
+                                  console.error('Delete error:', e);
+                                  setMessage({ type: 'error', text: 'ลบไม่สำเร็จ' });
+                                } finally {
+                                  setLoading(false);
+                                }
+                              }}
+                            >
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Box>
         </Paper>
       </Box>
     </Box>
