@@ -3,7 +3,7 @@ import axios from 'axios';
 import {
   Box, Grid, Card, CardContent, Typography, TextField, Button,
   Table, TableHead, TableBody, TableRow, TableCell, TableContainer, Paper,
-  Pagination, Stack, Divider
+  Pagination, Stack, Divider, Snackbar, Alert, Tooltip, InputAdornment, IconButton, LinearProgress
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import HomeIcon from '@mui/icons-material/Home';
@@ -34,6 +34,36 @@ const constraints = {
   actual_thickness: { required: false, type: 'float' },
   cIn: { required: false, type: 'float' },
   cOut: { required: false, type: 'float' },
+};
+
+const fieldLabels = {
+  matcode: 'รหัสวัตถุดิบ',
+  length: 'ความยาว',
+  size: 'ขนาด',
+  qty: 'จำนวน',
+  matgroup: 'กลุ่มวัตถุดิบ',
+  minweight: 'น้ำหนักต่ำสุด',
+  maxweight: 'น้ำหนักสูงสุด',
+  mintisweight: 'น้ำหนัก TIS ต่ำสุด',
+  maxtisweight: 'น้ำหนัก TIS สูงสุด',
+  remark: 'หมายเหตุ',
+  internal_size: 'ขนาดภายใน',
+  table_weight: 'น้ำหนักตาม std. (kg)'
+};
+
+const fieldHelp = {
+  matcode: 'เช่น MTL-XXXX',
+  length: 'หน่วยเป็นมิลลิเมตรหรือเมตร ตามมาตรฐานที่ใช้งาน',
+  size: 'เช่น 4.2 x 1219',
+  qty: 'จำนวนเส้น',
+  matgroup: 'กลุ่มวัตถุดิบ/ผลิตภัณฑ์',
+  minweight: 'ค่าน้ำหนักต่ำสุดที่ยอมรับได้',
+  maxweight: 'ค่าน้ำหนักสูงสุดที่ยอมรับได้',
+  mintisweight: 'ค่าน้ำหนักตาม TIS ต่ำสุด',
+  maxtisweight: 'ค่าน้ำหนักตาม TIS สูงสุด',
+  remark: 'ข้อมูลเพิ่มเติม',
+  internal_size: 'ขนาดภายใน',
+  table_weight: 'รองรับทศนิยมสูงสุด 3 ตำแหน่ง'
 };
 
 const visibleFields = [
@@ -88,6 +118,8 @@ export default function CheckPForm() {
   const location = useLocation();
   const params = new URLSearchParams(location.search);
   const currentUser = params.get('currentUser');
+  const [successOpen, setSuccessOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(''); 
 
   const [form, setForm] = useState({
     matcode: '', length: '', size: '', qty: '',
@@ -107,6 +139,7 @@ export default function CheckPForm() {
   const [page, setPage] = useState(1);
   const pageSize = 10;
   const totalPages = useMemo(() => Math.max(Math.ceil(total / pageSize), 1), [total]);
+  const [loadingList, setLoadingList] = useState(false);
 
   const onChange = (k, v) => {
     setForm(s => ({ ...s, [k]: v }));
@@ -130,18 +163,26 @@ export default function CheckPForm() {
     setSaving(true);
     try {
       await axios.post('/api/sync/check-p', payload);
+      setSuccessOpen(true);
       fetchList(page, search);
+    } catch (e) {
+      setErrorOpen(e?.response?.data?.message || 'เกิดข้อผิดพลาดในการบันทึก');
     } finally {
       setSaving(false);
     }
   };
 
   async function fetchList(p = 1, s = '') {
-    const res = await axios.get('/api/sync/check-p', { params: { page: p, pageSize, search: s } });
-    if (res.data?.success) {
-      setList(res.data.data || []);
-      setTotal(res.data.total || 0);
-      setPage(res.data.page || 1);
+    setLoadingList(true);
+    try {
+      const res = await axios.get('/api/sync/check-p', { params: { page: p, pageSize, search: s } });
+      if (res.data?.success) {
+        setList(res.data.data || []);
+        setTotal(res.data.total || 0);
+        setPage(res.data.page || 1);
+      }
+    } finally {
+      setLoadingList(false);
     }
   }
 
@@ -152,17 +193,20 @@ export default function CheckPForm() {
     const isNumber = ['int', 'float', 'decimal3'].includes(rule.type);
     const step = rule.type === 'int' ? 1 : (rule.type === 'decimal3' ? 0.001 : 'any');
     return (
-      <TextField
-        fullWidth
-        label={`${label}${rule.required ? ' *' : ''}`}
-        value={form[name] ?? ''}
-        onChange={e => onChange(name, e.target.value)}
-        type={isNumber ? 'number' : 'text'}
-        inputProps={isNumber ? { step } : { maxLength: rule.max || undefined }}
-        error={Boolean(errors[name])}
-        helperText={errors[name] || ' '}
-        size="small"
-      />
+      <Tooltip title={fieldHelp[name] || ''} placement="top" arrow>
+        <TextField
+          fullWidth
+          label={`${label}${rule.required ? ' *' : ''}`}
+          value={form[name] ?? ''}
+          onChange={e => onChange(name, e.target.value)}
+          type={isNumber ? 'number' : 'text'}
+          inputProps={isNumber ? { step } : { maxLength: rule.max || undefined }}
+          placeholder={fieldHelp[name] || label}
+          error={Boolean(errors[name])}
+          helperText={errors[name] || ' '}
+          size="small"
+        />
+      </Tooltip>
     );
   };
 
@@ -193,24 +237,13 @@ export default function CheckPForm() {
         <CardContent>
           <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1 }}>ข้อมูล Check P</Typography>
           <Grid container spacing={2}>
-            {visibleFields.map((f) => (
-              <Grid item xs={12} sm={6} md={4} key={f}>
-                {renderField(f, f)}
-              </Grid>
-            ))}
+          {visibleFields.map((f) => (
+            <Grid item xs={12} sm={6} md={4} key={f}>
+              {renderField(f, fieldLabels[f] || f)}
+            </Grid>
+          ))}
           </Grid>
-          <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
-            <Button variant="contained" startIcon={<SaveIcon />} onClick={submit} disabled={saving}>
-              {saving ? 'Saving...' : 'Save'}
-            </Button>
-            <Button variant="outlined" startIcon={<CleaningServicesIcon />} onClick={() => { setForm({
-              matcode:'', length:'', size:'', qty:'', matgroup:'', minweight:'', maxweight:'',
-              mintisweight:'', maxtisweight:'', remark:'', internal_size:'', table_weight:'',
-              color:null, speed:null, sap_description:null, actual_thickness:null, cIn:null, cOut:null
-            }); setErrors({}); }}>
-              Clear
-            </Button>
-          </Stack>
+          
         </CardContent>
       </Card>
 
@@ -229,12 +262,14 @@ export default function CheckPForm() {
             <Button startIcon={<ClearIcon />} variant="outlined" onClick={() => { setSearch(''); fetchList(1, ''); }}>ล้าง</Button>
           </Stack>
 
-          <TableContainer component={Paper} variant="outlined">
-            <Table size="small">
+          {loadingList && <LinearProgress sx={{ mb: 1 }} />}
+
+          <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 1, maxHeight: 440 }}>
+            <Table size="small" stickyHeader>
               <TableHead>
                 <TableRow>
                   {['matcode','size','length','qty','matgroup','internal_size','last_update'].map(h => (
-                    <TableCell key={h} sx={{ fontWeight: 700 }}>{h}</TableCell>
+                    <TableCell key={h} sx={{ fontWeight: 700, bgcolor: 'grey.100' }}>{h}</TableCell>
                   ))}
                 </TableRow>
               </TableHead>
@@ -245,14 +280,20 @@ export default function CheckPForm() {
                   </TableRow>
                 ) : (
                   list.map((row, idx) => (
-                    <TableRow key={idx} hover>
-                      <TableCell>{row.matcode}</TableCell>
-                      <TableCell>{row.size}</TableCell>
-                      <TableCell>{row.length}</TableCell>
-                      <TableCell>{row.qty}</TableCell>
-                      <TableCell>{row.matgroup}</TableCell>
-                      <TableCell>{row.internal_size}</TableCell>
-                      <TableCell>{row.last_update ? new Date(row.last_update).toLocaleString() : ''}</TableCell>
+                    <TableRow
+                      key={idx}
+                      hover
+                      sx={{ '&:nth-of-type(odd)': { backgroundColor: 'grey.50' } }}
+                    >
+                      <TableCell sx={{ maxWidth: 180, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.matcode}</TableCell>
+                      <TableCell sx={{ maxWidth: 180, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.size}</TableCell>
+                      <TableCell sx={{ maxWidth: 120, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.length}</TableCell>
+                      <TableCell sx={{ maxWidth: 80, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.qty}</TableCell>
+                      <TableCell sx={{ maxWidth: 180, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.matgroup}</TableCell>
+                      <TableCell sx={{ maxWidth: 180, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.internal_size}</TableCell>
+                      <TableCell sx={{ maxWidth: 200, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {row.last_update ? new Date(row.last_update).toLocaleString() : ''}
+                      </TableCell>
                     </TableRow>
                   ))
                 )}
@@ -273,6 +314,17 @@ export default function CheckPForm() {
           </Stack>
         </CardContent>
       </Card>
+
+      <Snackbar open={successOpen} autoHideDuration={3000} onClose={() => setSuccessOpen(false)} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
+        <Alert severity="success" onClose={() => setSuccessOpen(false)} sx={{ width: '100%' }}>
+          บันทึกสำเร็จ
+        </Alert>
+      </Snackbar>
+      <Snackbar open={Boolean(errorOpen)} autoHideDuration={4000} onClose={() => setErrorOpen('')} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
+        <Alert severity="error" onClose={() => setErrorOpen('')} sx={{ width: '100%' }}>
+          {errorOpen}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }
