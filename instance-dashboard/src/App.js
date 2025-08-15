@@ -827,78 +827,82 @@ function App() {
           <Box sx={{ my: 2 }}>
             <StatusAvatar online={selected.online} />
           </Box>
-          <Typography variant="subtitle1" fontWeight={600} sx={{ mt: 2 }}>
-            Process
-          </Typography>
-          <List>
-            {/* เมนูเปรียบเทียบข้อมูล - แสดงเฉพาะ admin และ dev */}
-            {canViewMenu('compare') && (
-              <ListItem button onClick={openCompareDrawer} sx={{ borderRadius: 2 }}>
-                <ListItemIcon>
-                  <SettingsIcon />
-                </ListItemIcon>
-                <ListItemText primary="เปรียบเทียบข้อมูล" />
-              </ListItem>
-            )}
+          {selected.online && (
+            <>
+              <Typography variant="subtitle1" fontWeight={600} sx={{ mt: 2 }}>
+                Process
+              </Typography>
+              <List>
+                {/* เมนูเปรียบเทียบข้อมูล - แสดงเฉพาะ admin และ dev */}
+                {canViewMenu('compare') && (
+                  <ListItem button onClick={openCompareDrawer} sx={{ borderRadius: 2 }}>
+                    <ListItemIcon>
+                      <SettingsIcon />
+                    </ListItemIcon>
+                    <ListItemText primary="เปรียบเทียบข้อมูล" />
+                  </ListItem>
+                )}
 
-            {/* เมนูเพิ่ม Location */}
-            {canViewMenu('location') && (
-              <ListItem button onClick={() => setLocationManagementOpen(true)} sx={{ borderRadius: 2 }}>
-                <ListItemIcon>
-                  <LocationOnIcon />
-                </ListItemIcon>
-                <ListItemText primary="เพิ่ม Location" />
-              </ListItem>
-            )}
+                {/* เมนูเพิ่ม Location */}
+                {canViewMenu('location') && (
+                  <ListItem button onClick={() => setLocationManagementOpen(true)} sx={{ borderRadius: 2 }}>
+                    <ListItemIcon>
+                      <LocationOnIcon />
+                    </ListItemIcon>
+                    <ListItemText primary="เพิ่ม Location" />
+                  </ListItem>
+                )}
 
-            {/* เมนูแผนสลิท */}
-            {canViewMenu('slit') && (
-              <ListItem button onClick={() => setSlitPlanOpen(true)} sx={{ borderRadius: 2 }}>
-                <ListItemIcon>
-                  <ContentCutIcon />
-                </ListItemIcon>
-                <ListItemText primary="แผนสลิท" />
-              </ListItem>
-            )}
+                {/* เมนูแผนสลิท */}
+                {canViewMenu('slit') && (
+                  <ListItem button onClick={() => setSlitPlanOpen(true)} sx={{ borderRadius: 2 }}>
+                    <ListItemIcon>
+                      <ContentCutIcon />
+                    </ListItemIcon>
+                    <ListItemText primary="แผนสลิท" />
+                  </ListItem>
+                )}
 
-            {/* เมนู Sync Check P */}
-            {canViewMenu('sync') && (
-              <ListItem
-                button
-                onClick={(e) => { e.stopPropagation(); handleSyncCheckP(); }}
-                disabled={syncingCheckP}
-                sx={{ borderRadius: 2 }}
-              >
-                <ListItemIcon>
-                  <GetAppIcon />
-                </ListItemIcon>
-                <ListItemText primary={syncingCheckP ? 'กำลังซิงก์...' : 'Sync Check P'} />
-              </ListItem>
-            )}
+                {/* เมนู Sync Check P */}
+                {canViewMenu('sync') && (
+                  <ListItem
+                    button
+                    onClick={(e) => { e.stopPropagation(); handleSyncCheckP(); }}
+                    disabled={syncingCheckP}
+                    sx={{ borderRadius: 2 }}
+                  >
+                    <ListItemIcon>
+                      <GetAppIcon />
+                    </ListItemIcon>
+                    <ListItemText primary={syncingCheckP ? 'กำลังซิงก์...' : 'Sync Check P'} />
+                  </ListItem>
+                )}
 
-            {/* เมนูตั้งค่าระบบ */}
-            {canViewMenu('settings') && (
-              <ListItem button sx={{ borderRadius: 2 }}>
-                <ListItemIcon>
-                  <SettingsIcon />
-                </ListItemIcon>
-                <ListItemText primary="ตั้งค่าระบบ" />
-              </ListItem>
-            )}
+                {/* เมนูตั้งค่าระบบ */}
+                {canViewMenu('settings') && (
+                  <ListItem button sx={{ borderRadius: 2 }}>
+                    <ListItemIcon>
+                      <SettingsIcon />
+                    </ListItemIcon>
+                    <ListItemText primary="ตั้งค่าระบบ" />
+                  </ListItem>
+                )}
 
-            {/* เมนูเพิ่ม Check P - removed from Drawer per request */}
+                {/* เมนูเพิ่ม Check P - removed from Drawer per request */}
 
-            {/* แสดงข้อความเมื่อไม่มีสิทธิ์ */}
-            {!canViewMenu('compare') && !canViewMenu('settings') && !canViewMenu('location') && !canViewMenu('slit') && !canViewMenu('sync') && (
-              <ListItem>
-                <ListItemText 
-                  primary="ไม่มีสิทธิ์เข้าถึงเมนู" 
-                  secondary={`สิทธิ์ปัจจุบัน: ${userRole || 'ไม่พบ'}`}
-                  sx={{ color: 'text.secondary' }}
-                />
-              </ListItem>
-            )}
-          </List>
+                {/* แสดงข้อความเมื่อไม่มีสิทธิ์ */}
+                {!canViewMenu('compare') && !canViewMenu('settings') && !canViewMenu('location') && !canViewMenu('slit') && !canViewMenu('sync') && (
+                  <ListItem>
+                    <ListItemText 
+                      primary="ไม่มีสิทธิ์เข้าถึงเมนู" 
+                      secondary={`สิทธิ์ปัจจุบัน: ${userRole || 'ไม่พบ'}`}
+                      sx={{ color: 'text.secondary' }}
+                    />
+                  </ListItem>
+                )}
+              </List>
+            </>
+          )}
           {/* ลบ LocationManagement ออกจาก DrawerContent ตรงนี้ */}
           {/* <Box sx={{ mt: 1 }}>
             <LocationManagement machine={selected?.name} compact />
@@ -949,7 +953,7 @@ function App() {
               variant="contained"
               color="primary"
               startIcon={<AddIcon />}
-              onClick={() => navigate('/check-p/new')}
+              onClick={() => navigate(`/check-p/new${query.get('currentUser') ? `?currentUser=${encodeURIComponent(query.get('currentUser'))}` : ''}`)}
               sx={{ ml: 1 }}
             >
               เพิ่ม Check P
