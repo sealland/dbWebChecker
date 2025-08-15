@@ -95,6 +95,9 @@ function groupByCategory(instances) {
   return categories;
 }
 
+  // ซิงก์ Check P ลงเครื่องที่เลือก
+  
+  
 // แก้ไขฟังก์ชัน getStatusDescription
 const getStatusDescription = (status) => {
   if (!status) return 'ไม่ทราบสถานะ';
@@ -159,6 +162,8 @@ function App() {
   const [locationManagementOpen, setLocationManagementOpen] = useState(false);
   // เพิ่ม state สำหรับแผนสลิท
   const [slitPlanOpen, setSlitPlanOpen] = useState(false);
+  // เพิ่ม state สำหรับ Sync Check P
+  const [syncingCheckP, setSyncingCheckP] = useState(false);
 
   // ฟังก์ชันตรวจสอบ Role ของ currentUser
   const checkUserRole = async (currentUser) => {
@@ -448,6 +453,23 @@ function App() {
   const handleDrawerClose = () => {
     setDrawerOpen(false);
     setSelected(null);
+  };
+
+  const handleSyncCheckP = async () => {
+    if (!selected) return;
+    if (!canViewMenu('sync')) return;
+
+    setSyncingCheckP(true);
+    try {
+      await axios.post(`/api/sync/check-p/${encodeURIComponent(selected.name)}/sp`);
+      alert(`Sync Check P ลงเครื่อง ${selected.name} สำเร็จ`);
+    } catch (e) {
+      const msg = e?.response?.data?.error || e.message;
+      alert(`Sync ล้มเหลว: ${msg}`);
+    } finally {
+      setSyncingCheckP(false);
+      handleDrawerClose();
+    }
   };
 
   // ฟังก์ชันสำหรับดึงข้อมูลเพิ่มเติมของเครื่อง
@@ -843,13 +865,14 @@ function App() {
             {canViewMenu('sync') && (
               <ListItem
                 button
-                onClick={() => { navigate('/sync-check-p'); handleDrawerClose(); }}
+                onClick={(e) => { e.stopPropagation(); handleSyncCheckP(); }}
+                disabled={syncingCheckP}
                 sx={{ borderRadius: 2 }}
               >
                 <ListItemIcon>
                   <GetAppIcon />
                 </ListItemIcon>
-                <ListItemText primary="Sync Check P" />
+                <ListItemText primary={syncingCheckP ? 'กำลังซิงก์...' : 'Sync Check P'} />
               </ListItem>
             )}
 

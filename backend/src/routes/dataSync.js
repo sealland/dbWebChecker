@@ -35,6 +35,21 @@ router.post('/bom', async (req, res) => {
   }
 });
 
+router.post('/check-p/:machine/sp', async (req, res) => {
+	try {
+		const { machine } = req.params;
+		const machines = getAllDbConfigs();
+		const targetMachine = machines.find(m => m.name === machine);
+		if (!targetMachine) {
+			return res.status(404).json({ success: false, error: `Machine '${machine}' not found` });
+		}
+		const result = await dataSyncService.syncCheckPViaCentralSP(targetMachine);
+		res.json({ success: true, message: `Executed SP for ${machine}`, result, timestamp: new Date() });
+	} catch (error) {
+		res.status(500).json({ success: false, error: error.message, timestamp: new Date() });
+	}
+});
+
 // POST /api/bom/:machine - Sync BOM ไปยังเครื่องเฉพาะ
 router.post('/bom/:machine', async (req, res) => {
   try {
