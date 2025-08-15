@@ -11,6 +11,7 @@ import SaveIcon from '@mui/icons-material/Save';
 import CleaningServicesIcon from '@mui/icons-material/CleaningServices';
 import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
+import EditIcon from '@mui/icons-material/Edit';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 // Schema constraints
@@ -120,15 +121,17 @@ export default function CheckPForm() {
   const currentUser = params.get('currentUser');
   const [successOpen, setSuccessOpen] = useState(false);
   const [errorOpen, setErrorOpen] = useState(''); 
-
-  const [form, setForm] = useState({
+  const [editMode, setEditMode] = useState(false);
+  const initialForm = {
     matcode: '', length: '', size: '', qty: '',
     matgroup: '', minweight: '', maxweight: '', mintisweight: '',
     maxtisweight: '', remark: '', internal_size: '', table_weight: '',
     // hidden defaults
     color: null, speed: null, sap_description: null,
     actual_thickness: null, cIn: null, cOut: null
-  });
+  };
+
+  const [form, setForm] = useState(initialForm);
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
 
@@ -144,6 +147,27 @@ export default function CheckPForm() {
   const onChange = (k, v) => {
     setForm(s => ({ ...s, [k]: v }));
     if (errors[k]) setErrors(e => { const ne = { ...e }; delete ne[k]; return ne; });
+  };
+
+  const startEdit = (row) => {
+    const next = { ...initialForm };
+    for (const k of Object.keys(constraints)) {
+      if (k in row) next[k] = row[k] ?? '';
+    }
+    setForm(next);
+    setEditMode(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const cancelEdit = () => {
+    setEditMode(false);
+    setForm(initialForm);
+    setErrors({});
+  };
+
+  const clearForm = () => {
+    setForm(initialForm);
+    setErrors({});
   };
 
   const submit = async () => {
@@ -165,6 +189,10 @@ export default function CheckPForm() {
       await axios.post('/api/sync/check-p', payload);
       setSuccessOpen(true);
       fetchList(page, search);
+      if (editMode) {
+        setEditMode(false);
+      }
+      setForm(initialForm);
     } catch (e) {
       setErrorOpen(e?.response?.data?.message || 'เกิดข้อผิดพลาดในการบันทึก');
     } finally {
@@ -205,6 +233,7 @@ export default function CheckPForm() {
           error={Boolean(errors[name])}
           helperText={errors[name] || ' '}
           size="small"
+          disabled={editMode && name === 'matcode'}
         />
       </Tooltip>
     );
@@ -243,6 +272,19 @@ export default function CheckPForm() {
             </Grid>
           ))}
           </Grid>
+          <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+            <Button variant="contained" startIcon={<SaveIcon />} onClick={submit} disabled={saving}>
+              {saving ? 'Saving...' : (editMode ? 'Update' : 'Save')}
+            </Button>
+            {editMode && (
+              <Button variant="outlined" color="warning" onClick={cancelEdit}>
+                Cancel Edit
+              </Button>
+            )}
+            <Button variant="outlined" startIcon={<CleaningServicesIcon />} onClick={clearForm}>
+              Clear
+            </Button>
+          </Stack>
           
         </CardContent>
       </Card>
@@ -271,6 +313,7 @@ export default function CheckPForm() {
                   {['matcode','size','length','qty','matgroup','internal_size','last_update'].map(h => (
                     <TableCell key={h} sx={{ fontWeight: 700, bgcolor: 'grey.100' }}>{h}</TableCell>
                   ))}
+                  <TableCell sx={{ fontWeight: 700, bgcolor: 'grey.100' }}>actions</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -293,6 +336,13 @@ export default function CheckPForm() {
                       <TableCell sx={{ maxWidth: 180, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.internal_size}</TableCell>
                       <TableCell sx={{ maxWidth: 200, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {row.last_update ? new Date(row.last_update).toLocaleString() : ''}
+                      </TableCell>
+                      <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                        <Tooltip title="แก้ไข">
+                          <IconButton size="small" color="primary" onClick={() => startEdit(row)}>
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
                       </TableCell>
                     </TableRow>
                   ))
