@@ -120,6 +120,7 @@ export default function CheckPForm() {
   const params = new URLSearchParams(location.search);
   const currentUser = params.get('currentUser');
   const [successOpen, setSuccessOpen] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
   const [errorOpen, setErrorOpen] = useState(''); 
   const [editMode, setEditMode] = useState(false);
   const initialForm = {
@@ -156,7 +157,15 @@ export default function CheckPForm() {
     }
     setForm(next);
     setEditMode(true);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    // Scroll to form section
+    setTimeout(() => {
+      const formElement = document.querySelector('[data-form-section]');
+      if (formElement) {
+        formElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } else {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    }, 100);
   };
 
   const cancelEdit = () => {
@@ -187,12 +196,15 @@ export default function CheckPForm() {
     setSaving(true);
     try {
       await axios.post('/api/sync/check-p', payload);
+      setSuccessMessage(editMode ? 'แก้ไขข้อมูล Check P สำเร็จ' : 'เพิ่มข้อมูล Check P สำเร็จ');
       setSuccessOpen(true);
       fetchList(page, search);
       if (editMode) {
         setEditMode(false);
+        setForm(initialForm);
+      } else {
+        setForm(initialForm);
       }
-      setForm(initialForm);
     } catch (e) {
       setErrorOpen(e?.response?.data?.message || 'เกิดข้อผิดพลาดในการบันทึก');
     } finally {
@@ -262,9 +274,26 @@ export default function CheckPForm() {
         </CardContent>
       </Card>
 
-      <Card sx={{ mb: 3 }}>
+      <Card sx={{ mb: 3, border: editMode ? '2px solid #ff9800' : '1px solid #e0e0e0' }} data-form-section>
         <CardContent>
-          <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1 }}>ข้อมูล Check P</Typography>
+          <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 2 }}>
+            <Typography variant="subtitle1" fontWeight={700}>
+              ข้อมูล Check P
+            </Typography>
+            {editMode && (
+              <Box sx={{ 
+                bgcolor: '#ff9800', 
+                color: 'white', 
+                px: 2, 
+                py: 0.5, 
+                borderRadius: 1,
+                fontSize: '0.75rem',
+                fontWeight: 600
+              }}>
+                โหมดแก้ไข
+              </Box>
+            )}
+          </Stack>
           <Grid container spacing={2}>
           {visibleFields.map((f) => (
             <Grid item xs={12} sm={6} md={4} key={f}>
@@ -272,17 +301,23 @@ export default function CheckPForm() {
             </Grid>
           ))}
           </Grid>
-          <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
-            <Button variant="contained" startIcon={<SaveIcon />} onClick={submit} disabled={saving}>
-              {saving ? 'Saving...' : (editMode ? 'Update' : 'Save')}
+          <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
+            <Button 
+              variant="contained" 
+              startIcon={<SaveIcon />} 
+              onClick={submit} 
+              disabled={saving}
+              color={editMode ? 'warning' : 'primary'}
+            >
+              {saving ? 'กำลังบันทึก...' : (editMode ? 'อัพเดตข้อมูล' : 'บันทึกข้อมูล')}
             </Button>
             {editMode && (
               <Button variant="outlined" color="warning" onClick={cancelEdit}>
-                Cancel Edit
+                ยกเลิกการแก้ไข
               </Button>
             )}
             <Button variant="outlined" startIcon={<CleaningServicesIcon />} onClick={clearForm}>
-              Clear
+              ล้างข้อมูล
             </Button>
           </Stack>
           
@@ -310,16 +345,20 @@ export default function CheckPForm() {
             <Table size="small" stickyHeader>
               <TableHead>
                 <TableRow>
-                  {['matcode','size','length','qty','matgroup','internal_size','last_update'].map(h => (
-                    <TableCell key={h} sx={{ fontWeight: 700, bgcolor: 'grey.100' }}>{h}</TableCell>
-                  ))}
-                  <TableCell sx={{ fontWeight: 700, bgcolor: 'grey.100' }}>actions</TableCell>
+                  <TableCell sx={{ fontWeight: 700, bgcolor: 'grey.100' }}>รหัสวัตถุดิบ</TableCell>
+                  <TableCell sx={{ fontWeight: 700, bgcolor: 'grey.100' }}>ขนาด</TableCell>
+                  <TableCell sx={{ fontWeight: 700, bgcolor: 'grey.100' }}>ความยาว</TableCell>
+                  <TableCell sx={{ fontWeight: 700, bgcolor: 'grey.100' }}>จำนวน</TableCell>
+                  <TableCell sx={{ fontWeight: 700, bgcolor: 'grey.100' }}>กลุ่มวัตถุดิบ</TableCell>
+                  <TableCell sx={{ fontWeight: 700, bgcolor: 'grey.100' }}>ขนาดภายใน</TableCell>
+                  <TableCell sx={{ fontWeight: 700, bgcolor: 'grey.100' }}>อัพเดตล่าสุด</TableCell>
+                  <TableCell sx={{ fontWeight: 700, bgcolor: 'grey.100' }}>การดำเนินการ</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {list.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} align="center" sx={{ color: 'text.secondary' }}>ไม่พบข้อมูล</TableCell>
+                    <TableCell colSpan={8} align="center" sx={{ color: 'text.secondary' }}>ไม่พบข้อมูล</TableCell>
                   </TableRow>
                 ) : (
                   list.map((row, idx) => (
@@ -338,8 +377,19 @@ export default function CheckPForm() {
                         {row.last_update ? new Date(row.last_update).toLocaleString() : ''}
                       </TableCell>
                       <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                        <Tooltip title="แก้ไข">
-                          <IconButton size="small" color="primary" onClick={() => startEdit(row)}>
+                        <Tooltip title="แก้ไขข้อมูล Check P">
+                          <IconButton 
+                            size="small" 
+                            color="warning" 
+                            onClick={() => startEdit(row)}
+                            sx={{ 
+                              '&:hover': { 
+                                bgcolor: 'warning.light',
+                                transform: 'scale(1.1)'
+                              },
+                              transition: 'all 0.2s ease'
+                            }}
+                          >
                             <EditIcon fontSize="small" />
                           </IconButton>
                         </Tooltip>
@@ -367,7 +417,7 @@ export default function CheckPForm() {
 
       <Snackbar open={successOpen} autoHideDuration={3000} onClose={() => setSuccessOpen(false)} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
         <Alert severity="success" onClose={() => setSuccessOpen(false)} sx={{ width: '100%' }}>
-          บันทึกสำเร็จ
+          {successMessage}
         </Alert>
       </Snackbar>
       <Snackbar open={Boolean(errorOpen)} autoHideDuration={4000} onClose={() => setErrorOpen('')} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
