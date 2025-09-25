@@ -568,7 +568,7 @@ function App() {
         fromDate: compareDates.from,
         toDate: compareDates.to,
         shift: 'Z',
-        user: 'system'
+        user: query.get('currentUser') || 'system'
       });
       
       // รีเฟรชข้อมูลหลังจากอัพเดต

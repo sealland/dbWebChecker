@@ -786,7 +786,7 @@ export async function updateProductionPlan(dbConfig, station, fromDate, toDate, 
                   .input('change', sql.DateTime, new Date()) // เวลาปัจจุบัน
                   .input('username', sql.VarChar, user) // user ที่ส่งมา
                   .input('shift', sql.VarChar, record.rmd_period) // **สำคัญ: ใช้กะจากข้อมูลที่ดึงมา**
-                  .input('Status', sql.VarChar, 'ผลิตแน่') // "ผลิตเสร็จ"
+                  .input('Status', sql.VarChar, 'ผลิตแน่') // "ผลิตแน่"
                   .input('complete', sql.Int, -1)
                   .query(`
                       INSERT INTO production_plan 
