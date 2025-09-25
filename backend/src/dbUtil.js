@@ -160,6 +160,7 @@ export function mapMachineToProductionPlanFormat(stationName) {
     'ท่อดำ #5': 'OCP I5', 'ท่อดำ #6': 'OCP I6', 'ท่อดำ #7': 'OCP I7', 'ท่อดำ #8': 'OCP I8',
     'ตัวซี #1': 'OCP H1', 'ตัวซี #2': 'OCP H2', 'ตัวซี #3': 'OCP H3', 'ตัวซี #4': 'OCP H4',
     'ตัวซี #5': 'OCP H5', 'ตัวซี #6': 'OCP H6',
+    'ตัดแผ่น 1': 'OCP PL1', 'ตัดแผ่น 2': 'OCP PL2', 'ตัดแผ่น 4': 'OCP PL4',
   };
   const mappedStation = mapping[stationName] || stationName;
   console.log('[INFO] Mapped to:', mappedStation);
