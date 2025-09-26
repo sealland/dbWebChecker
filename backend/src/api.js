@@ -665,6 +665,11 @@ router.get('/compare/planning_dev', async (req, res) => {
 // POST /api/compare/update - อัพเดตข้อมูล Production Plan
 router.post('/compare/update', async (req, res) => {
   const { name, station, fromDate, toDate, shift, user } = req.body;
+  
+  // Debug: ตรวจสอบ user parameter
+  console.log('API /compare/update received user:', user);
+  console.log('Full request body:', req.body);
+  
   if (!name || !station || !fromDate || !toDate) {
     return res.status(400).json({ error: 'ต้องระบุ name, station, fromDate, toDate' });
   }

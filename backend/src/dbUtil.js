@@ -686,6 +686,7 @@ export async function updateProductionPlan(dbConfig, station, fromDate, toDate, 
   // โค้ดใหม่จะบังคับใช้ shift = 'Z' ตอน INSERT ตามที่คุณบอก
   const finalShift = "Z"; 
   console.log("Starting updateProductionPlan:", { station, fromDate, toDate, shift: finalShift, user });
+  console.log("User parameter received:", user, "Type:", typeof user);
 
   let sourcePool = null;
   let ceoReportPool = null;

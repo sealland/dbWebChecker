@@ -561,6 +561,10 @@ function App() {
     
     setUpdating(true);
     try {
+      // Debug: ตรวจสอบ currentUser
+      const currentUser = query.get('currentUser');
+      console.log('Current User from URL:', currentUser);
+      console.log('Full URL:', window.location.href);
       
       const response = await axios.post(getApiUrl(endpoints.compare.update), {
         name: selected.name,
@@ -568,7 +572,7 @@ function App() {
         fromDate: compareDates.from,
         toDate: compareDates.to,
         shift: 'Z',
-        user: query.get('currentUser') || 'system'
+        user: currentUser || 'system'
       });
       
       // รีเฟรชข้อมูลหลังจากอัพเดต
