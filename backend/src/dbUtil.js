@@ -758,21 +758,22 @@ export async function updateProductionPlan(dbConfig, station, fromDate, toDate, 
       console.log("Step 2: Begin transaction on CEO_REPORT");
       
       try {
-          // **แก้ไข DELETE ให้ตรงกับโค้ด Access เดิม (ลบข้อมูลเดิมแทนการ UPDATE)**
+          // **แก้ไข**: ใช้ station parameter โดยตรงตาม MS Access (ไม่ต้อง map)
           const mappedStationForPlan = mapMachineToProductionPlanFormat(station);
-          console.log(`Deleting existing records for station: ${mappedStationForPlan}`);
+          console.log(`Updating existing records' status to 'รอตรวจสอบ' for station: ${mappedStationForPlan}`);
           
-          const deleteRequest = new sql.Request(transaction);
-          await deleteRequest
+          const updateRequest = new sql.Request(transaction);
+          await updateRequest
               .input('station', sql.VarChar, mappedStationForPlan)
               .input('fromDate', sql.Date, fromDate)
               .input('toDate', sql.Date, toDate)
+              .input('shift', sql.VarChar, finalShift)
               .query(`
-                  DELETE FROM production_plan 
+                  UPDATE production_plan 
+                  SET status = 'รอตรวจสอบ', shift = @shift
                   WHERE station = @station AND CAST(postingdate AS DATE) BETWEEN @fromDate AND @toDate
               `);
-          console.log("Existing records deleted.");
-
+          console.log("Existing records updated.");
           // **แก้ไข INSERT ให้ตรงกับโค้ด Access เดิม**
           console.log(`Step 3: Inserting ${recordsToUpdate.length} new records...`);
           for (const record of recordsToUpdate) {

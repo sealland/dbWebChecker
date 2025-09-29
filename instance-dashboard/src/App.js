@@ -627,8 +627,10 @@ function App() {
 
   // ฟังก์ชันสำหรับเปิด compare drawer พร้อม set วันที่ default
   const openCompareDrawer = () => {
-    const today = formatDateForInput(new Date());
-    setCompareDates({ from: today, to: today });
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayFormatted = formatDateForInput(yesterday);
+    setCompareDates({ from: yesterdayFormatted, to: yesterdayFormatted });
     setCompareOpen(true);
   };
 
